@@ -75,6 +75,17 @@ footer a{color:var(--forest)}
 .d1{animation-delay:.08s}.d2{animation-delay:.2s}.d3{animation-delay:.34s}.d4{animation-delay:.48s}
 @keyframes rise{to{opacity:1;transform:none}}
 @media(prefers-reduced-motion:reduce){.rise{animation:none;opacity:1;transform:none}html{scroll-behavior:auto}button{transition:none}}
+
+.pack{margin-top:16px;border:2px dashed var(--forest);border-radius:12px;padding:14px;background:#fff9ef}
+.packhead{font-family:var(--hand);font-size:26px;line-height:1.1;margin-bottom:8px}
+.badge{font-family:var(--body);font-size:11px;letter-spacing:.12em;text-transform:uppercase;background:var(--orange);color:#fff;padding:2px 8px;border-radius:999px;vertical-align:middle}
+.cmp{width:100%;border-collapse:collapse;font-size:15px}
+.cmp th,.cmp td{padding:6px 8px;border-bottom:1px solid #e3d8c8;text-align:left;vertical-align:top}
+.cmp thead th{font-size:13px;color:var(--sage-deep)}
+.cmp tbody th{font-weight:400;color:var(--ink)}
+.cmp td:last-child{background:#eef3e6}
+.packline{margin:10px 0 4px;font-weight:700;color:var(--forest)}
+.guar{margin:14px 0 8px;font-size:15px}
 </style>
 </head>
 <body>
@@ -82,7 +93,7 @@ footer a{color:var(--forest)}
   <div class="wrap">
     <div class="mark rise">wander<small>MOBILE COFFEE</small></div>
     <h1 class="rise d1">Coffee van at your event. <em>Price now.</em></h1>
-    <p class="lede rise d2">Tell us how many people and how many hours. You see the price straight away. Send your request, we email your quote in minutes, and Sam calls to lock it in.</p>
+    <p class="lede rise d2">Tell us how many people. You see the price straight away. Send five quick details and your quote lands in your inbox within a minute. Sam calls the same day to lock it in.</p>
   </div>
 </header>
 
@@ -106,13 +117,24 @@ footer a{color:var(--forest)}
         <div class="sub" id="sub">20 people, 3 hours, including GST</div>
       </div>
       <p class="fine">Travel is free within 50 km of our base. Further out, we confirm a small travel charge on the call.</p>
-      <div class="tag" aria-live="polite" style="margin-top:14px">
-        <div class="sub" id="pack-title"><strong>Office Club 4-Pack</strong></div>
-        <div class="amt" id="pack-amt">$2,476</div>
-        <div class="sub" id="pack-sub"></div>
+      <div class="pack" id="pack">
+        <div class="packhead"><strong>Office Club 4-Pack</strong> <span class="badge">best value</span></div>
+        <table class="cmp" aria-label="Four single mornings compared with the Prepaid 4-Pack">
+          <thead><tr><th></th><th>Four single mornings</th><th>Prepaid 4-Pack</th></tr></thead>
+          <tbody>
+            <tr><th>You pay</th><td id="cmp-single">$1,832</td><td id="cmp-pack"><strong>$1,832</strong></td></tr>
+            <tr><th>Length of mornings</th><td>2 hours each</td><td><strong>2, 2, 2 and 3 hours</strong></td></tr>
+            <tr><th>Bonus hour</th><td>none</td><td><strong id="cmp-bonus">worth $161, free</strong></td></tr>
+            <tr><th>Price locked, 12 months</th><td>no</td><td><strong>yes</strong></td></tr>
+            <tr><th>A morning we can't deliver</th><td>refund or new date</td><td><strong>refund or new date</strong></td></tr>
+          </tbody>
+        </table>
+        <p class="packline" id="packline">The same price as four single mornings, with an extra hour of coffee thrown in.</p>
+        <p class="fine">Paid up front. Pick the dates now or any time in 12 months, with 24 hours' notice. Cancel a morning with 24 hours' notice and it moves to another date.</p>
       </div>
-      <p class="fine">Four mornings paid up front, the fourth runs one extra hour on us. Use them within 12 months. Ask about it on the call.</p>
-      <a class="go" id="go" href="#" rel="noopener">Request this booking</a>
+      <p class="guar"><strong>Our promise:</strong> more than 15 minutes late and your first hour is free · no-show, full refund · a coffee that isn't right is remade or refunded.</p>
+      <a class="go" id="go" href="#" rel="noopener">Email me my price and call me today</a>
+      <p class="fine">Five details. We confirm your hours, start time and address on the call. Prefer the 4-Pack? Say so on the call, or reply to your quote.</p>
       <div class="msg" id="msg" role="alert" hidden></div>
     </section>
 
@@ -159,10 +181,13 @@ function showQuote() {
   const n = validPeople(), h = hours();
   document.getElementById("amt").textContent = n ? money(quote(n, h)) : "$ ...";
   document.getElementById("sub").textContent = n ? `${n} ${n === 1 ? "person" : "people"}, ${h} hours, including GST` : "Enter 1 to 500 people";
-  if (!n) { document.getElementById("pack-amt").textContent = "$ ..."; document.getElementById("pack-sub").textContent = ""; return; }
-  const one = quote(n, h), bonus = quote(n, h + 1) - one;
-  document.getElementById("pack-amt").textContent = money(4 * one);
-  document.getElementById("pack-sub").textContent = `4 mornings of ${h} hours for ${n} people, plus a bonus hour worth ${money(bonus)} on the fourth`;
+  if (!n) return;
+  // The 4-Pack is four 2-hour mornings at list price, and the fourth runs 3 hours: same price, one hour on us.
+  const pack = 4 * quote(n, 2), bonus = quote(n, 3) - quote(n, 2);
+  document.getElementById("cmp-single").textContent = money(pack);
+  document.getElementById("cmp-pack").innerHTML = "<strong>" + money(pack) + "</strong>";
+  document.getElementById("cmp-bonus").textContent = "worth " + money(bonus) + ", free";
+  document.getElementById("packline").textContent = `For ${n} ${n === 1 ? "person" : "people"}: ${money(pack)} either way, and the 4-Pack adds a ${money(bonus)} hour of coffee. Nothing to lose.`;
 }
 document.addEventListener("input", showQuote); showQuote();
 go.addEventListener("click", (event) => {
