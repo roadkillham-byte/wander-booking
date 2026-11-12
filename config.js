@@ -1,3 +1,3 @@
-// The Google Apps Script web app that receives booking requests ("Client Confirmation" project, /exec URL).
-// Empty until that web app is deployed: the form then asks visitors to call instead.
-window.WANDER_INTAKE_URL = "";
+// The public link to Wander's booking Google Form (the "Client Confirmation" project, setupBookingForm prints it).
+// Empty until the form exists: the page then asks visitors to call instead.
+window.WANDER_FORM_URL = "";

@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Book Wander Coffee Van</title>
-<meta name="description" content="Coffee van for your event. See your price now, send your details, and we call you to lock it in. No deposit.">
+<meta name="description" content="Coffee van for your event. See your price now, then send your booking request. Sam calls to lock it in.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Gaegu:wght@400;700&display=swap" rel="stylesheet">
@@ -58,6 +58,8 @@ li::before{content:"";position:absolute;left:4px;top:15px;width:14px;height:8px;
 .promise li::before{border-color:var(--orange)}
 .check{display:flex;gap:10px;align-items:flex-start;margin:16px 0 0;text-transform:none;letter-spacing:0;font-size:15px;color:var(--ink)}
 .check input{width:22px;height:22px;flex:none;margin-top:1px;accent-color:var(--forest)}
+.go{display:block;text-align:center;text-decoration:none;width:100%;margin-top:18px;font-family:var(--hand);font-size:30px;line-height:1;color:var(--cream);background:var(--forest);border:2px solid var(--ink);border-radius:12px;padding:14px 16px 16px;box-shadow:4px 4px 0 var(--ink);transition:transform .12s,box-shadow .12s}
+.go:hover{transform:translate(2px,2px);box-shadow:2px 2px 0 var(--ink)}
 button{width:100%;margin-top:18px;font-family:var(--hand);font-size:30px;line-height:1;color:var(--cream);background:var(--forest);border:2px solid var(--ink);border-radius:12px;padding:14px 16px 16px;cursor:pointer;box-shadow:4px 4px 0 var(--ink);transition:transform .12s,box-shadow .12s}
 button:hover{transform:translate(-1px,-1px);box-shadow:6px 6px 0 var(--ink)}
 button:active{transform:translate(3px,3px);box-shadow:1px 1px 0 var(--ink)}
@@ -80,17 +82,16 @@ footer a{color:var(--forest)}
   <div class="wrap">
     <div class="mark rise">wander<small>MOBILE COFFEE</small></div>
     <h1 class="rise d1">Coffee van at your event. <em>Price now.</em></h1>
-    <p class="lede rise d2">Tell us how many people and how many hours. You see the price straight away, we email it to you, and Sam calls to lock it in. No deposit.</p>
+    <p class="lede rise d2">Tell us how many people and how many hours. You see the price straight away. Send your request, we email your quote in minutes, and Sam calls to lock it in.</p>
   </div>
 </header>
 
 <main class="wrap">
   <div class="grid">
-    <form class="card rise d3" id="form" novalidate>
+    <section class="card rise d3" id="form">
       <h2>Your <span>quote</span></h2>
       <div class="row">
         <div><label for="people">People</label><input id="people" name="people" type="number" inputmode="numeric" min="1" max="500" value="20" required></div>
-        <div><label for="date">Event date</label><input id="date" name="date" type="date" required></div>
       </div>
       <label id="hours-label">Hours of service</label>
       <div class="hours" role="radiogroup" aria-labelledby="hours-label">
@@ -105,34 +106,15 @@ footer a{color:var(--forest)}
         <div class="sub" id="sub">20 people, 3 hours, including GST</div>
       </div>
       <p class="fine">Travel is free within 50 km of our base. Further out, we confirm a small travel charge on the call.</p>
-
-      <h2 style="margin-top:26px">Where do we <span>call?</span></h2>
-      <div class="row">
-        <div><label for="name">Your name</label><input id="name" name="name" autocomplete="name" required></div>
-        <div><label for="phone">Phone</label><input id="phone" name="phone" type="tel" autocomplete="tel" required></div>
+      <div class="tag" aria-live="polite" style="margin-top:14px">
+        <div class="sub" id="pack-title"><strong>Office Club 4-Pack</strong></div>
+        <div class="amt" id="pack-amt">$2,476</div>
+        <div class="sub" id="pack-sub"></div>
       </div>
-      <label for="email">Email (we send your quote here)</label>
-      <input id="email" name="email" type="email" autocomplete="email" required>
-      <div class="row">
-        <div><label for="address">Event address</label><input id="address" name="address" autocomplete="street-address" required></div>
-        <div><label for="startTime">Start time (optional)</label><input id="startTime" name="startTime" type="time"></div>
-      </div>
-      <label for="notes">Anything we should know? (optional)</label>
-      <textarea id="notes" name="notes" maxlength="500"></textarea>
-      <div class="hp" aria-hidden="true"><label for="website">Website</label><input id="website" name="website" tabindex="-1" autocomplete="off"></div>
-      <label class="check"><input type="checkbox" id="offers" name="offers"><span>Email me offers and credits from Wander Coffee Van. I can unsubscribe at any time.</span></label>
-      <button type="submit" id="send">Send my quote</button>
+      <p class="fine">Four mornings paid up front, the fourth runs one extra hour on us. Use them within 12 months. Ask about it on the call.</p>
+      <a class="go" id="go" href="#" rel="noopener">Request this booking</a>
       <div class="msg" id="msg" role="alert" hidden></div>
-      <p class="fine">We use your details only to quote and arrange your booking.</p>
-    </form>
-
-    <div class="card rise d3" id="done" hidden>
-      <div class="done">
-        <div class="big">Quote sent.</div>
-        <p id="done-text"></p>
-        <p class="fine">Nothing in your inbox in a few minutes? Check spam, or call 0492 801 058.</p>
-      </div>
-    </div>
+    </section>
 
     <div class="stack">
       <section class="card rise d4">
@@ -142,7 +124,7 @@ footer a{color:var(--forest)}
           <li>Unlimited coffee, tea and hot chocolate</li>
           <li>Our set-up hour, included</li>
           <li>A free babyccino for each child</li>
-          <li>No deposit, and no menu choices to make</li>
+          <li>No menu choices to make: you give us people and hours, that is the whole quote</li>
         </ul>
       </section>
       <section class="card rise d4">
@@ -164,50 +146,30 @@ footer a{color:var(--forest)}
 
 <script src="config.js"></script>
 <script>
-// Where booking requests go (set in config.js): Wander's Google Apps Script web app. It logs the request, emails the quote
-// and alerts Wander. This page sends no email itself.
-const INTAKE_URL = window.WANDER_INTAKE_URL || "";
-const form = document.getElementById("form"), msg = document.getElementById("msg"), send = document.getElementById("send");
-const peopleEl = document.getElementById("people"), dateEl = document.getElementById("date");
-const hours = () => Number(form.querySelector('input[name="hours"]:checked').value);
-// Catering Rate Card: people x ($3.40 + $4.62 x hours) + (hours + 1) x $68.41, inc GST, to the dollar.
+// The price below is Wander's Catering Rate Card. Booking requests go to Wander's Google Form (set in config.js);
+// this page collects nothing and sends no email.
+const FORM_URL = window.WANDER_FORM_URL || "";
+const peopleEl = document.getElementById("people"), msg = document.getElementById("msg"), go = document.getElementById("go");
+const hours = () => Number(document.querySelector('input[name="hours"]:checked').value);
+// people x ($3.40 + $4.62 x hours) + (hours + 1) x $68.41, inc GST, to the dollar.
 const quote = (people, h) => Math.round(people * (3.4 + 4.62 * h) + (h + 1) * 68.41);
+const money = (n) => "$" + n.toLocaleString("en-AU");
 function validPeople() { const n = Number(peopleEl.value); return Number.isInteger(n) && n >= 1 && n <= 500 ? n : null; }
 function showQuote() {
   const n = validPeople(), h = hours();
-  document.getElementById("amt").textContent = n ? "$" + quote(n, h).toLocaleString("en-AU") : "$ ...";
+  document.getElementById("amt").textContent = n ? money(quote(n, h)) : "$ ...";
   document.getElementById("sub").textContent = n ? `${n} ${n === 1 ? "person" : "people"}, ${h} hours, including GST` : "Enter 1 to 500 people";
+  if (!n) { document.getElementById("pack-amt").textContent = "$ ..."; document.getElementById("pack-sub").textContent = ""; return; }
+  const one = quote(n, h), bonus = quote(n, h + 1) - one;
+  document.getElementById("pack-amt").textContent = money(4 * one);
+  document.getElementById("pack-sub").textContent = `4 mornings of ${h} hours for ${n} people, plus a bonus hour worth ${money(bonus)} on the fourth`;
 }
-const today = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
-dateEl.min = today;
-form.addEventListener("input", showQuote); showQuote();
-function fail(text) { msg.textContent = text; msg.hidden = false; send.disabled = false; send.textContent = "Send my quote"; }
-const LIVE = /^https:\/\/script\.google\.com\//.test(INTAKE_URL);
-form.addEventListener("submit", async (event) => {
-  event.preventDefault(); msg.hidden = true;
-  // Until the request endpoint is connected, say so plainly; the price above still works.
-  if (!LIVE) return fail("Online requests open shortly. To book now, call 0492 801 058 with your price above.");
-  const data = Object.fromEntries(new FormData(form).entries());
-  const n = validPeople();
-  if (!n) return fail("People must be a whole number from 1 to 500.");
-  if (!data.date || data.date < today) return fail("Please choose a date from today on.");
-  if (!data.name.trim() || data.phone.replace(/\D/g, "").length < 8) return fail("Please add your name and a phone number we can call.");
-  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(data.email.trim())) return fail("Please check your email address.");
-  if (!data.address.trim()) return fail("Please tell us where the event is.");
-  const body = { ...data, people: n, hours: hours(), offers: document.getElementById("offers").checked };
-  send.disabled = true; send.textContent = "Sending...";
-  try {
-    // text/plain keeps this a simple request, which the Google endpoint accepts from another site.
-    const response = await fetch(INTAKE_URL, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(body), redirect: "follow" });
-    const result = await response.json();
-    if (!result.ok) return fail(result.error || "That didn't go through. Please call 0492 801 058.");
-    form.hidden = true;
-    document.getElementById("done-text").textContent = `We've emailed your quote of $${result.quote.toLocaleString("en-AU")} to ${data.email.trim()}. Sam will call you on ${data.phone.trim()} to lock it in.`;
-    document.getElementById("done").hidden = false;
-    document.getElementById("done").scrollIntoView({ block: "center" });
-  } catch (error) {
-    fail("We couldn't send that just now. Please try again, or call 0492 801 058.");
-  }
+document.addEventListener("input", showQuote); showQuote();
+go.addEventListener("click", (event) => {
+  if (/^https:\/\/(docs\.google\.com\/forms|forms\.gle)\//.test(FORM_URL)) { go.href = FORM_URL; return; }
+  event.preventDefault();
+  msg.textContent = "Online requests open shortly. To book now, call 0492 801 058 with your price above.";
+  msg.hidden = false;
 });
 </script>
 </body>
