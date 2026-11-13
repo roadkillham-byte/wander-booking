@@ -470,9 +470,32 @@ var StoreLogic = (function () {
     return { ok: true };
   }
 
+  // What clients did on the page in the last `days` days, for Sam's conversion view. Counts only: no client is identified.
+  function funnel(db, appToken, now, days) {
+    if (!appTokenOk(db, appToken)) return { ok: false, error: "not-allowed" };
+    var n = Math.floor(Number(days));
+    if (!(n >= 1)) n = 30;
+    if (n > 90) n = 90;
+    var today = WanderRules.sydneyDate(now);
+    var since = WanderRules.addDays(today, -(n - 1));
+    var out = { ok: true, days: n, since: since, events: 0, totals: {}, views: {}, ctas: {} };
+    EVENT_TYPES.forEach(function (t) { out.totals[t] = 0; });
+    db.read("events").forEach(function (e) {
+      var day = WanderRules.sydneyDate(e.time);
+      if (!day || day < since || out.totals[e.type] === undefined) return;
+      out.events += 1;
+      out.totals[e.type] += 1;
+      var label = "";
+      try { label = clean((JSON.parse(e.data || "{}") || {}).v, 24); } catch (err) { label = ""; }
+      if (label && e.type === "view") out.views[label] = (out.views[label] || 0) + 1;
+      if (label && e.type === "cta") out.ctas[label] = (out.ctas[label] || 0) + 1;
+    });
+    return out;
+  }
+
   return {
     TABLES: TABLES, CONTRACT_VERSION: CONTRACT_VERSION, EVENT_TYPES: EVENT_TYPES,
-    event: event,
+    event: event, funnel: funnel,
     health: health, publish: publish, pending: pending, ack: ack, prices: prices, session: session, request: request,
     availability: availability, failureAlert: failureAlert,
     endTimeFor: endTimeFor, readRequest: readRequest,

@@ -1,0 +1,12 @@
+{
+  "request": { "k": "APP-TOKEN-FIXTURE", "days": 30 },
+  "response": {
+    "ok": true,
+    "days": 30,
+    "since": "2026-11-02",
+    "events": 17,
+    "totals": { "view": 8, "cta": 3, "upgrade-shown": 2, "upgrade-accepted": 1, "upgrade-declined": 1, "booked": 2, "calendar": 0, "referral-shared": 0 },
+    "views": { "held": 5, "pick": 2, "refer": 1 },
+    "ctas": { "held": 2, "hold": 1 }
+  }
+}

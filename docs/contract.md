@@ -110,6 +110,19 @@ Every route of the store answers JSON, even when it throws: an exception is caug
 (never an HTML error page). The store emails its owner about an error at most once an hour, with the action name and the error
 text only, no client data.
 
+## Funnel (app token)
+
+`POST ?action=funnel` with body `{k: APP_TOKEN, days?: 30}` → see `fixtures/contract/funnel.json`. What clients did on the page in the last
+`days` days (1 to 90, default 30), counted from the events the page sends (never sent when the browser says Do Not Track). No client
+is identified: events carry a type and a small label, nothing else.
+
+- `totals`: `{type: count}` for every event type (`view`, `cta`, `upgrade-shown`, `upgrade-accepted`, `upgrade-declined`, `booked`,
+  `calendar`, `referral-shared`); a type with no events is `0`.
+- `views`: `{screen: count}` for `view` events, by the screen label (`held`, `pick`, `change`, `same-again`, `held-booking`, `refer`, `compare`).
+- `ctas`: `{label: count}` for `cta` events (`held`, `hold`, `change`).
+- `since`: the first day counted (Sydney date). `events`: how many were counted in all.
+- Refused with `{ok:false, error:"not-allowed"}` unless the token is the app token.
+
 ## Health
 
 `GET ?action=health` → `{ok, contractVersion: 1, asOf, staleAfterHours: 6}`. The page checks it before showing any link.

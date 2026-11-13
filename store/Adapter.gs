@@ -86,7 +86,7 @@ function doGet(e) {
   }
 }
 
-// POST (text/plain JSON body): session, request, availability, event, publish, pending, ack.
+// POST (text/plain JSON body): session, request, availability, event, funnel, publish, pending, ack.
 function doPost(e) {
   var action = (e && e.parameter && e.parameter.action) || '';
   var body;
@@ -98,6 +98,7 @@ function doPost(e) {
     if (action === 'request') return storeJson_(StoreLogic.request(db, body, now));
     if (action === 'availability') return storeJson_(StoreLogic.availability(db, body, now));
     if (action === 'event') return storeJson_(StoreLogic.event(db, body, now));
+    if (action === 'funnel') return storeJson_(StoreLogic.funnel(db, body.k, now, body.days));
     if (action === 'publish') return storeJson_(StoreLogic.publish(db, body.k, body.snapshot, now));
     if (action === 'pending') return storeJson_(StoreLogic.pending(db, body.k));
     if (action === 'ack') return storeJson_(StoreLogic.ack(db, body.k, body.ids));

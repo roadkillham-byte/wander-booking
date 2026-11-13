@@ -120,6 +120,7 @@ export function startMock(port = 4180, { db = seededDb() } = {}) {
       if (action === "request") return send(200, S.request(db, body, now));
       if (action === "availability") return send(200, S.availability(db, body, now));
       if (action === "event") return send(200, S.event(db, body, now));
+      if (action === "funnel") return send(200, S.funnel(db, body.k, now, body.days));
       if (action === "pending") return send(200, S.pending(db, body.k));
       if (action === "ack") return send(200, S.ack(db, body.k, body.ids));
       if (action === "publish") return send(200, S.publish(db, body.k, body.snapshot, now));
