@@ -15,7 +15,7 @@
   ];
   var INCLUDES = [
     "Unlimited coffee, tea and hot chocolate for every guest",
-    "An Oat and About bowl each",
+    "A bowl each, any bowl you like",
     "Our set-up hour, and the pack-down",
     "A free babyccino for every child",
   ];
