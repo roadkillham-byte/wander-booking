@@ -1,4 +1,4 @@
-// The client dashboard page. Screens: Held (landing), Pick (change or first pick), Upgrade (the 4-Pack, once), Confirmed,
+// The Wander Customer Portal page. Screens: Held (landing), Pick (change or first pick), Upgrade (the 4-Pack, once), Confirmed,
 // My bookings, a booking, My 4-Pack, Compare options, Schedule a call. One action per screen. Client-facing words say "we".
 // Prices and fees are read from the store (Coffee Van publishes them); this page only looks them up.
 (function () {
@@ -20,7 +20,7 @@
     "A free babyccino for every child",
   ];
   var app = document.getElementById("app");
-  var state = { k: null, session: null, prices: null, route: {}, notice: null, busy: false, lastHold: null };
+  var state = { k: null, session: null, prices: null, route: {}, notice: null, busy: false, lastHold: null, avail: null, failures: 0 };
 
   function money(n) { return "$" + Math.round(Number(n) || 0).toLocaleString("en-AU"); }
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
@@ -202,12 +202,12 @@
       return '<label class="chip"><input type="radio" name="hours" value="' + h + '"' + (Number(seed.hours) === h ? " checked" : "") + "> " + h + " hours</label>";
     }).join("");
     var timeOptions = TIMES.map(function (t) {
-      var fee = feeFor(t, Number(seed.hours) || 3);
-      return '<option value="' + t + '"' + (seed.startTime === t ? " selected" : "") + ">" + esc(clock(t)) + (fee ? " (+" + money(fee) + ")" : "") + "</option>";
+      return '<option value="' + t + '"' + (seed.startTime === t ? " selected" : "") + ">" + esc(timeLabel(t, Number(seed.hours) || 3, false)) + "</option>";
     }).join("");
     var inner = '<section class="rise d1"><h2 class="rule">' + (mode === "change" ? "Change your morning" : "Pick your morning") + "</h2>" +
       '<form id="pick" class="stack">' +
       '<label>Date<input type="date" name="date" required value="' + esc(seed.date) + '"></label>' +
+      '<div id="avail" aria-live="polite"></div>' +
       '<label>Start<select name="startTime">' + timeOptions + "</select></label>" +
       '<label>People<input type="number" name="people" min="1" max="200" required value="' + esc(seed.people) + '"></label>' +
       '<fieldset><legend>Hours</legend>' + lengths + "</fieldset>" +
@@ -216,8 +216,70 @@
       '<button type="submit" class="go">Book this morning</button>' +
       "</form></section>";
     track("view", { v: mode === "change" ? "change" : "pick" });
-    setTimeout(function () { updatePickPrice(); }, 0);
+    setTimeout(function () { updatePickPrice(); applyAvailability(); }, 0);
     return shell(inner, { step: 0, greet: mode === "change" ? "Hi " + firstName() + "." : "Hi " + firstName() + ". Let's find your morning." });
+  }
+
+  function timeLabel(t, hours, taken) {
+    var fee = feeFor(t, hours);
+    return clock(t) + (fee ? " (+" + money(fee) + ")" : "") + (taken ? " - taken" : "");
+  }
+  function minutesOf(hhmm) { var m = /^(\d{2}):(\d{2})$/.exec(hhmm || ""); return m ? Number(m[1]) * 60 + Number(m[2]) : null; }
+  // "between 1:00 pm and 6:00 pm", one phrase for each run of free half hours.
+  function freeWindows(list) {
+    var runs = [], from = null, prev = null;
+    list.forEach(function (t) {
+      if (from === null) from = t;
+      else if (minutesOf(t) - minutesOf(prev) !== 30) { runs.push([from, prev]); from = t; }
+      prev = t;
+    });
+    if (from !== null) runs.push([from, prev]);
+    return runs.map(function (r) { return r[0] === r[1] ? "at " + clock(r[0]) : "between " + clock(r[0]) + " and " + clock(r[1]); }).join(" or ");
+  }
+  function nextFreeChips(data, skip) {
+    var dates = Object.keys(data.days).sort().filter(function (d) { return d !== skip; }).slice(0, 6);
+    if (!dates.length) return "";
+    return '<p class="note">Next free dates:</p><p class="chips">' + dates.map(function (d) {
+      var label = new Date(d + "T12:00:00").toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short" });
+      return '<button type="button" class="chip" data-date="' + esc(d) + '">' + esc(label) + "</button>";
+    }).join("") + "</p>";
+  }
+  function availabilityHtml(data, date, free) {
+    if (!data) return "";
+    if (data.stale) return '<p class="note">Our calendar is a little behind, so pick any time and we will confirm it by text.</p>';
+    if (free === null) return nextFreeChips(data, "");
+    if (!free.length) return '<p class="note"><strong>That day is full.</strong> Pick another, or ring us.</p>' + nextFreeChips(data, date);
+    return '<p class="note">The van is free that day. You can start ' + esc(freeWindows(free)) + ".</p>";
+  }
+  function loadAvailability(hours, bookingId) {
+    var key = hours + "|" + (bookingId || "");
+    if (state.avail && state.avail.key === key && Date.now() - state.avail.at < 2 * 60 * 1000) return Promise.resolve(state.avail.data);
+    return WanderApi.availability({ k: state.k, hours: hours, bookingId: bookingId || "" }).then(function (r) {
+      if (r && r.ok) { state.avail = { key: key, at: Date.now(), data: r }; return r; }
+      return null;
+    });
+  }
+  // Marks the start times the van cannot take on the chosen day, and says in words when it is free. If the store does not
+  // answer, nothing is claimed: every time stays open and the request itself is checked as before.
+  function applyAvailability() {
+    var form = document.getElementById("pick");
+    var out = document.getElementById("avail");
+    if (!form || !out) return;
+    var hours = Number(form.hours.value) || 3;
+    var b = state.route.v === "change" ? bookingForRoute() : null;
+    loadAvailability(hours, b && b.id).then(function (data) {
+      if (document.getElementById("pick") !== form || (Number(form.hours.value) || 3) !== hours) return;
+      var date = form.date.value;
+      var inWindow = data && !data.stale && /^\d{4}-\d{2}-\d{2}$/.test(date) && date >= data.window.from && date <= data.window.through;
+      var free = inWindow ? (data.days[date] || []) : null;
+      Array.prototype.forEach.call(form.startTime.options, function (o) {
+        var taken = free !== null && free.indexOf(o.value) < 0;
+        o.disabled = taken;
+        o.textContent = timeLabel(o.value, hours, taken);
+      });
+      if (free && free.length && free.indexOf(form.startTime.value) < 0) { form.startTime.value = free[0]; updatePickPrice(); }
+      out.innerHTML = availabilityHtml(data, date, free);
+    });
   }
 
   function updatePickPrice() {
@@ -278,7 +340,7 @@
         '</a> <span class="word">' + esc(b.status) + "</span></li>";
     }).concat(pend.map(function (p) { return '<li>Requested: ' + esc(p.kind) + ' (we reply within ' + esc(p.replyWithinHours) + " hours)</li>"; }));
     var inner = '<section class="rise d1"><h2 class="rule">My bookings</h2>' +
-      (rows.length ? '<ul class="list">' + rows.join("") + "</ul>" : '<p>No bookings yet. <a href="#k=' + encodeURIComponent(state.k) + '&v=pick">Pick a morning</a>.</p>') + "</section>";
+      (rows.length ? '<ul class="list">' + rows.join("") + "</ul>" : '<p>No bookings yet. <a href="#k=' + encodeURIComponent(state.k) + '&v=pick">Pick a morning</a>.</p>') + "</section>" + creditsHtml();
     return shell(inner, { nav: true, greet: "Your mornings, " + firstName() + "." });
   }
 
@@ -305,19 +367,32 @@
     return shell(inner, { nav: true, greet: "Your 4-Pack, " + firstName() + "." });
   }
 
+  function longDate(iso) {
+    var d = new Date(iso + "T12:00:00");
+    return isNaN(d) ? iso : d.toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric" });
+  }
+  // The credits waiting for this client, in the words the store published.
+  function creditsHtml() {
+    var credits = (state.session && state.session.credits) || [];
+    if (!credits.length) return "";
+    return '<section class="rise d2"><h2 class="rule">Waiting for you</h2><ul class="list">' +
+      credits.map(function (c) { return "<li>" + esc(c.label) + (c.expiresAt ? ", use by " + esc(longDate(c.expiresAt)) : "") + "</li>"; }).join("") +
+      '</ul><p class="note">We take it off when we confirm your next morning.</p></section>';
+  }
+
   // Refer a team: the code, one tap to share the link, and who has booked, by first name only.
   function renderRefer() {
     var code = (state.session && state.session.client && state.session.client.referralCode) || "";
     var refs = (state.session && state.session.referrals) || [];
     var rows = refs.length
       ? '<ul class="list">' + refs.map(function (r) {
-        return "<li>" + esc(r.firstName || "A friend") + (r.status === "completed" ? ": their morning is done, 10% earned" : ": booked") + "</li>";
+        return "<li>" + esc(r.firstName || "A friend") + (r.status === "completed" ? ": their morning is done, 10% earned" : ": booked. Your 10% unlocks after their morning") + "</li>";
       }).join("") + "</ul>"
       : "<p>No one yet. Send your link to a team that would love a morning.</p>";
     var inner = '<section class="rise d1"><h2 class="rule">Refer a team</h2>' +
       "<p>Send them your link. When their first morning runs, you get 10% off your next booking.</p>" +
       (code ? '<p class="refcode">Your code: <code>' + esc(code) + "</code></p>" : "") +
-      '<button type="button" class="go" id="share">Copy my referral link</button>' + rows + "</section>";
+      '<button type="button" class="go" id="share">Copy my referral link</button>' + rows + "</section>" + creditsHtml();
     track("view", { v: "refer" });
     return shell(inner, { nav: true, greet: "Share the morning, " + firstName() + "." });
   }
@@ -353,20 +428,72 @@
     bind();
   }
 
-  // Responses from the store: a held or requested answer always leads to a plain next screen, never an error.
-  function handle(response, next) {
+  // A request, sent once with its own id. If the reply never arrives the same body (same id) can be sent again safely.
+  function send(body, next) {
+    state.busy = true;
+    return WanderApi.request(body).then(function (r) { return handle(r, next, body); });
+  }
+
+  // Responses from the store. An answer always leads to a plain next screen. A store that could not be reached says so,
+  // keeps what the client typed and offers a retry, a text and a call; a store that refused asks the client to check.
+  function handle(response, next, body) {
     state.busy = false;
     if (response && response.ok) {
+      state.failures = 0;
+      state.avail = null;
       state.notice = response.message || null;
       return refresh().then(function () { next(response); });
     }
-    state.notice = "Requested: we will text you within 24 hours to confirm this.";
-    return refresh().then(function () { next(null); });
+    if (WanderApi.unreachable(response)) return showFailure(body, next);
+    return flash("That did not go through. Please check the details and try again, or ring us.");
+  }
+
+  function flash(text) {
+    var old = app.querySelector(".notice");
+    if (old) old.remove();
+    var band = app.querySelector("header.band");
+    var html = '<p class="notice" role="alert">' + esc(text) + "</p>";
+    if (band) band.insertAdjacentHTML("afterend", html); else app.insertAdjacentHTML("afterbegin", html);
+  }
+
+  // What the client was asking for, in their own words, for the text they can send instead.
+  function describeRequest(body) {
+    var list = (state.session && state.session.bookings) || [];
+    if (body.kind === "cancel") {
+      var b = list.filter(function (x) { return x.id === body.bookingId; })[0];
+      return "I would like to cancel my morning" + (b ? " on " + dayName(b.date) + " at " + clock(b.startTime) : "") + ".";
+    }
+    if (body.kind === "call") return "Please ring me" + (body.when ? ": " + body.when : "") + ".";
+    var what = { hold: "book", change: "change my booking to", pack: "ask about a 4-Pack starting" }[body.kind] || "book";
+    return "I tried to " + what + " " + dayName(body.date) + " at " + clock(body.startTime) + " for " + body.people + " people, " + body.hours +
+      " hours" + (body.address ? " at " + body.address : "") + ", but your page would not go through.";
+  }
+
+  function showFailure(body, next) {
+    state.failures += 1;
+    var old = document.getElementById("fail");
+    if (old) old.remove();
+    var text = "Hi Wander, " + describeRequest(body);
+    var html = '<section class="fail" id="fail" role="alert"><h2 class="rule">We could not confirm that</h2>' +
+      "<p>" + (state.failures > 1 ? "Still not getting through. " : "") +
+      "Our booking system is not answering, so we cannot tell whether your request reached us. Nothing has been charged, and your details are still here.</p>" +
+      '<button type="button" class="go" id="retry">Try again</button>' +
+      '<p class="note"><a href="sms:' + esc(window.WANDER_PHONE_LINK) + "?&body=" + encodeURIComponent(text) + '">Text us this request</a> or ' +
+      '<a href="tel:' + esc(window.WANDER_PHONE_LINK) + '">ring us on ' + esc(window.WANDER_PHONE_DISPLAY) + "</a>.</p></section>";
+    var band = app.querySelector("header.band");
+    if (band) band.insertAdjacentHTML("afterend", html); else app.insertAdjacentHTML("afterbegin", html);
+    // One orange action: while the retry is on screen, the button it replaces steps back.
+    Array.prototype.forEach.call(app.querySelectorAll("button.go"), function (b) { if (b.id !== "retry") b.classList.add("ghost"); });
+    var retry = document.getElementById("retry");
+    retry.addEventListener("click", function () { if (!state.busy) send(body, next); });
+    document.getElementById("fail").scrollIntoView({ block: "start" });
   }
 
   function uid() { return "req-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8); }
 
   function bind() {
+    var reload = document.getElementById("reload");
+    if (reload) reload.addEventListener("click", route);
     var book = document.getElementById("book") || document.getElementById("again");
     if (book) book.addEventListener("click", function () {
       if (state.busy) return;
@@ -374,15 +501,22 @@
       track("cta", { v: "held" });
       state.lastHold = { date: book.dataset.date, startTime: book.dataset.start, people: Number(book.dataset.people),
         hours: Number(book.dataset.hours), address: book.dataset.address };
-      WanderApi.request({ k: state.k, kind: "hold", requestId: uid(), date: state.lastHold.date, startTime: state.lastHold.startTime,
+      send({ k: state.k, kind: "hold", requestId: uid(), date: state.lastHold.date, startTime: state.lastHold.startTime,
         people: state.lastHold.people, hours: state.lastHold.hours, address: state.lastHold.address,
-        shownTotal: shownTotalFor(state.lastHold), shownFee: feeFor(book.dataset.start, Number(book.dataset.hours)) })
-        .then(function (r) { handle(r, function (resp) { showPage(renderUpgradeOrConfirm(resp)); }); });
+        shownTotal: shownTotalFor(state.lastHold), shownFee: feeFor(book.dataset.start, Number(book.dataset.hours)) },
+        function (resp) { showPage(renderUpgradeOrConfirm(resp)); });
     });
     var pick = document.getElementById("pick");
     if (pick) {
-      pick.addEventListener("input", updatePickPrice);
-      pick.addEventListener("change", updatePickPrice);
+      pick.addEventListener("input", function () { updatePickPrice(); applyAvailability(); });
+      pick.addEventListener("change", function () { updatePickPrice(); applyAvailability(); });
+      document.getElementById("avail").addEventListener("click", function (ev) {
+        var chip = ev.target.closest ? ev.target.closest("button[data-date]") : null;
+        if (!chip) return;
+        pick.date.value = chip.getAttribute("data-date");
+        updatePickPrice();
+        applyAvailability();
+      });
       pick.addEventListener("submit", function (ev) {
         ev.preventDefault();
         if (state.busy) return;
@@ -396,17 +530,15 @@
         if (state.route.v === "change" && b) { body.kind = "change"; body.bookingId = b.id; }
         else { body.kind = "hold"; }
         track("cta", { v: body.kind });
-        WanderApi.request(body).then(function (r) {
-          handle(r, function (resp) { showPage(resp && resp.outcome === "held" ? renderUpgradeOrConfirm(resp) : renderConfirmed(resp)); });
-        });
+        send(body, function (resp) { showPage(resp && resp.outcome === "held" ? renderUpgradeOrConfirm(resp) : renderConfirmed(resp)); });
       });
     }
     var yes = document.getElementById("pack-yes");
     if (yes) yes.addEventListener("click", function () {
       track("upgrade-accepted", {});
       var b = state.lastHold || {};
-      WanderApi.request({ k: state.k, kind: "pack", requestId: uid(), date: b.date, startTime: b.startTime, people: b.people, hours: b.hours })
-        .then(function (r) { handle(r, function (resp) { showPage(renderConfirmed(resp)); }); });
+      send({ k: state.k, kind: "pack", requestId: uid(), date: b.date, startTime: b.startTime, people: b.people, hours: b.hours },
+        function (resp) { showPage(renderConfirmed(resp)); });
     });
     var no = document.getElementById("pack-no");
     if (no) no.addEventListener("click", function () {
@@ -436,14 +568,12 @@
     var cancelYes = document.getElementById("cancel-yes");
     if (cancelYes) cancelYes.addEventListener("click", function () {
       var b = (state.session.bookings || []).filter(function (x) { return x.id === state.route.b; })[0];
-      WanderApi.request({ k: state.k, kind: "cancel", requestId: uid(), bookingId: b ? b.id : "" })
-        .then(function (r) { handle(r, function () { go("bookings"); }); });
+      send({ k: state.k, kind: "cancel", requestId: uid(), bookingId: b ? b.id : "" }, function () { go("bookings"); });
     });
     var call = document.getElementById("call");
     if (call) call.addEventListener("submit", function (ev) {
       ev.preventDefault();
-      WanderApi.request({ k: state.k, kind: "call", requestId: uid(), when: call.when.value, note: call.note.value })
-        .then(function (r) { handle(r, function () { go("home"); }); });
+      send({ k: state.k, kind: "call", requestId: uid(), when: call.when.value, note: call.note.value }, function () { go("home"); });
     });
   }
 
@@ -470,7 +600,7 @@
     b = { id: "wander-" + b.date + "-" + b.startTime, date: b.date, startTime: b.startTime, endTime: endOf(b.startTime, b.hours), address: b.address, hours: b.hours };
     var stamp = b.date.replace(/-/g, "") + "T" + b.startTime.replace(":", "") + "00";
     var end = b.date.replace(/-/g, "") + "T" + (b.endTime || endOf(b.startTime, b.hours)).replace(":", "") + "00";
-    var ics = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Wander Coffee Van//Dashboard//EN", "BEGIN:VEVENT",
+    var ics = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Wander Coffee Van//Customer Portal//EN", "BEGIN:VEVENT",
       "UID:" + b.id + "@wander", "DTSTART;TZID=Australia/Sydney:" + stamp, "DTEND;TZID=Australia/Sydney:" + end,
       "SUMMARY:Wander Coffee Van", "LOCATION:" + (b.address || ""), "END:VEVENT", "END:VCALENDAR"].join("\r\n");
     var a = document.createElement("a");
@@ -493,12 +623,21 @@
       return;
     }
     refresh().then(function (s) {
+      if (WanderApi.unreachable(s)) {
+        showPage(shell('<section class="fail"><h2 class="rule">We are not answering just yet</h2><p>Our booking system is not answering right now. Your link is fine. Try again in a minute, or ring us.</p>' +
+          '<button type="button" class="go" id="reload">Try again</button></section>'));
+        return;
+      }
       if (!s || !s.ok) {
         showPage(shell('<section class="rise d1"><p>We could not open this link. Reply to our email and we will send you a new one.</p></section>'));
         return;
       }
       if (!state.prices) {
-        return WanderApi.prices().then(function (p) { state.prices = p && p.ok ? p : { quotes: {}, packs: {}, fees: {} }; showRoute(); });
+        // A price table that did not load is not remembered, so the next screen asks again.
+        return WanderApi.prices().then(function (p) {
+          if (p && p.ok) state.prices = p;
+          showRoute();
+        });
       }
       showRoute();
     });
