@@ -231,3 +231,34 @@ test("funnel events are stored for a known client, only for listed types, and re
   assert.equal(db.tables.events[0].type, "upgrade-shown");
 });
 
+test("the session carries only that client's referrals, by first name", () => {
+  const db = makeDb();
+  publish(db, { clients: [
+    { token: "TOKEN-ALEX-0000000000000001", firstName: "Alex", referralCode: "K7M2-QXTP", referrals: [{ firstName: "Jo", status: "booked" }] },
+    { token: "TOKEN-SAM-00000000000000002", firstName: "Sam", referralCode: "H4BC-7WDR", referrals: [{ firstName: "Pat", status: "completed" }] },
+  ] });
+  const alex = S.session(db, "TOKEN-ALEX-0000000000000001", NOW);
+  assert.deepEqual(alex.referrals, [{ firstName: "Jo", status: "booked" }]);
+  assert.equal(JSON.stringify(alex).includes("Pat"), false);
+});
+
+test("referrals keep a first name and a status and nothing else; any other status is dropped", () => {
+  const db = makeDb();
+  publish(db, { clients: [{ token: "TOKEN-ALEX-0000000000000001", firstName: "Alex", referralCode: "K7M2-QXTP", referrals: [
+    { firstName: "Jo", status: "completed", email: "jo@example.com", surname: "Lee" },
+    { firstName: "Ghost", status: "weird" },
+    { firstName: "x".repeat(60), status: "booked" },
+  ] }] });
+  const view = S.session(db, "TOKEN-ALEX-0000000000000001", NOW);
+  assert.deepEqual(view.referrals[0], { firstName: "Jo", status: "completed" });
+  assert.equal(view.referrals.length, 2);
+  assert.equal(view.referrals[1].firstName.length, 40);
+  assert.equal(JSON.stringify(view).includes("jo@example.com"), false);
+});
+
+test("a client with no referrals gets an empty list", () => {
+  const db = makeDb();
+  publish(db);
+  assert.deepEqual(S.session(db, "TOKEN-ALEX-0000000000000001", NOW).referrals, []);
+});
+

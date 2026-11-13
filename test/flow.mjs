@@ -82,6 +82,19 @@ await check("a returning client sees Same again with a future date, and one tap 
   await page.waitForSelector("#pack-yes");
 });
 
+await check("Refer a team shows the code, a share button and each referral by first name only", async () => {
+  await page.goto(url + "/#k=" + MOCK_CLIENT_TOKEN + "&v=refer");
+  await page.waitForSelector("#share");
+  const txt = await page.innerText("#app");
+  for (const want of ["K7M2-QXTP", "Copy my referral link", "Jo", "booked", "Pat", "10% earned"]) {
+    if (!txt.includes(want)) throw new Error("missing: " + want);
+  }
+  if (/@|\d{4} ?\d{3}/.test(txt.replace("0492 801 058", ""))) throw new Error("contact detail on the screen");
+  await noOverflowAndNoJunk("Refer a team");
+  await page.waitForTimeout(1200);
+  await page.screenshot({ path: shots + "/dash-4-refer.png", fullPage: true });
+});
+
 await check("a bad link shows a plain message, never an error page", async () => {
   await page.goto(url + "/#k=NOT-A-TOKEN");
   await page.waitForFunction(() => document.getElementById("app").innerText.includes("could not open this link"), null, { timeout: 5000 });

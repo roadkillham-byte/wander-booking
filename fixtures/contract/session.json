@@ -3,12 +3,37 @@
   "contractVersion": 1,
   "asOf": "2026-12-01T06:00:00+11:00",
   "stale": false,
-  "client": { "firstName": "Alex", "referralCode": "K7M2-QXTP" },
+  "client": {
+    "firstName": "Alex",
+    "referralCode": "K7M2-QXTP"
+  },
   "bookings": [
-    { "id": "bk-101", "status": "held", "date": "2026-12-05", "startTime": "09:00", "endTime": "12:00",
-      "people": 20, "hours": 3, "address": "1 Main Street, Forster", "total": 619, "outOfHoursFee": 0 }
+    {
+      "id": "bk-101",
+      "status": "held",
+      "date": "2026-12-05",
+      "startTime": "09:00",
+      "endTime": "12:00",
+      "people": 20,
+      "hours": 3,
+      "address": "1 Main Street, Forster",
+      "total": 619,
+      "outOfHoursFee": 0
+    }
   ],
   "pending": [],
-  "credits": [{ "kind": "referral", "label": "10% off your next booking", "expiresAt": "2027-11-13" }],
-  "pack": null
+  "credits": [
+    {
+      "kind": "referral",
+      "label": "10% off your next booking",
+      "expiresAt": "2027-11-13"
+    }
+  ],
+  "pack": null,
+  "referrals": [
+    {
+      "firstName": "Jo",
+      "status": "booked"
+    }
+  ]
 }

@@ -64,6 +64,7 @@ export function seededDb(now = new Date().toISOString()) {
     asOf: now,
     clients: [
       { token: MOCK_CLIENT_TOKEN, firstName: "Alex", referralCode: "K7M2-QXTP",
+        referrals: [{ firstName: "Jo", status: "booked" }, { firstName: "Pat", status: "completed" }],
         quote: { date: "2026-12-12", startTime: "09:00", people: 20, hours: 3, address: "3 Lake Road, Tea Gardens", total: 619, fee: 0 } },
       { token: MOCK_RETURNING_TOKEN, firstName: "Sam", referralCode: "H4BC-7WDR" },
     ],

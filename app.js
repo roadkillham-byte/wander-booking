@@ -98,7 +98,8 @@
       '<ol class="trail" aria-label="Your progress">' + trail + "</ol></header>" +
       '<nav class="top"><a href="#k=' + encodeURIComponent(state.k) + '&v=bookings">My bookings</a>' +
       '<a href="#k=' + encodeURIComponent(state.k) + '&v=pack">My 4-Pack</a>' +
-      '<a href="#k=' + encodeURIComponent(state.k) + '&v=compare">Compare options</a></nav>' +
+      '<a href="#k=' + encodeURIComponent(state.k) + '&v=compare">Compare options</a>' +
+      '<a href="#k=' + encodeURIComponent(state.k) + '&v=refer">Refer a team</a></nav>' +
       notice + stale + inner +
       '<p class="talk"><a href="tel:' + esc(window.WANDER_PHONE_LINK) + '">Rather talk? <span>We will ring you today</span> <b class="num">' + esc(window.WANDER_PHONE_DISPLAY) + "</b></a></p>";
   }
@@ -245,7 +246,8 @@
       '<p class="note">' + calendarBtn + "</p></section>" +
       '<section class="rise d2 refer"><h2 class="rule">Know a team that would love this?</h2>' +
       '<p>Send them your link. When their first morning runs, you get 10% off your next booking.</p>' +
-      '<button type="button" class="go ghost" id="share">Copy my referral link</button></section>';
+      '<button type="button" class="go ghost" id="share">Copy my referral link</button>' +
+      '<p class="note"><a href="#k=' + encodeURIComponent(state.k) + '&v=refer">See who you have referred</a></p></section>';
     track("booked", { outcome: response ? response.outcome : "held" });
     return shell(inner, { step: 2, greet: "Thank you, " + firstName() + "." });
   }
@@ -283,6 +285,23 @@
         : "<p>You do not have a 4-Pack yet. Four mornings, paid up front, with bonus coffee time on top.</p>" +
           '<p><a href="#k=' + encodeURIComponent(state.k) + '&v=pick">Pick a morning first</a>, then we offer the 4-Pack.</p>') + "</section>";
     return shell(inner, { greet: "Your 4-Pack, " + firstName() + "." });
+  }
+
+  // Refer a team: the code, one tap to share the link, and who has booked, by first name only.
+  function renderRefer() {
+    var code = (state.session && state.session.client && state.session.client.referralCode) || "";
+    var refs = (state.session && state.session.referrals) || [];
+    var rows = refs.length
+      ? '<ul class="list">' + refs.map(function (r) {
+        return "<li>" + esc(r.firstName || "A friend") + (r.status === "completed" ? ": their morning is done, 10% earned" : ": booked") + "</li>";
+      }).join("") + "</ul>"
+      : "<p>No one yet. Send your link to a team that would love a morning.</p>";
+    var inner = '<section class="rise d1"><h2 class="rule">Refer a team</h2>' +
+      "<p>Send them your link. When their first morning runs, you get 10% off your next booking.</p>" +
+      (code ? '<p class="refcode">Your code: <code>' + esc(code) + "</code></p>" : "") +
+      '<button type="button" class="go" id="share">Copy my referral link</button>' + rows + "</section>";
+    track("view", { v: "refer" });
+    return shell(inner, { greet: "Share the morning, " + firstName() + "." });
   }
 
   function renderCompare() {
@@ -382,7 +401,15 @@
     if (share) share.addEventListener("click", function () {
       track("referral-shared", {});
       var link = referralLink();
-      if (navigator.clipboard && link) navigator.clipboard.writeText(link).then(function () { share.textContent = "Link copied"; }, function () {});
+      if (!link) return;
+      var copy = function () {
+        if (navigator.clipboard) navigator.clipboard.writeText(link).then(function () { share.textContent = "Link copied"; }, function () {});
+      };
+      if (navigator.share) {
+        navigator.share({ title: "Wander Coffee Van", text: "A coffee van that comes to your team. Book a morning:", url: link }).catch(copy);
+      } else {
+        copy();
+      }
     });
     var askCancel = document.getElementById("cancel-ask");
     if (askCancel) askCancel.addEventListener("click", function () { document.getElementById("cancel-confirm").hidden = false; askCancel.hidden = true; });
@@ -472,6 +499,7 @@
     else if (v === "booking") html = renderBooking();
     else if (v === "pack") html = renderPack();
     else if (v === "compare") html = renderCompare();
+    else if (v === "refer") html = renderRefer();
     else if (v === "call") html = renderCall();
     else if (v === "confirmed") html = renderConfirmed(null);
     else html = renderHome();

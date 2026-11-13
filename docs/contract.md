@@ -20,6 +20,7 @@ adapter in `store/Adapter.gs`) and Coffee Van's sync (`server/dashboardSync.mjs`
 `POST ?action=session` with body `{k: TOKEN}` → see `fixtures/contract/session.json`. POST keeps tokens out of URLs and server logs.
 
 - `client`: `{firstName, referralCode}`.
+- `referrals`: `[{firstName, status: "booked"|"completed"}]`, the people this client referred, by first name only. Nothing else about them.
 - `bookings`: each `{id, status, date, startTime, endTime, people, hours, address, total, outOfHoursFee}`.
   `status` is one of `held`, `confirmed`, `completed`, `cancelled`, `requested`.
 - `pending`: requests waiting for Sam, `{id, kind, replyWithinHours}`.
@@ -67,7 +68,8 @@ Then `POST ?action=ack` with `{k, ids:[...]}` removes them from the queue. The s
 
 `POST ?action=publish` with `{k, snapshot}`. The snapshot replaces clients, bookings, busy times and credits; it is
 idempotent. `fixtures/contract/publish.json` is an example. Clients are keyed by `token` (minted by Coffee Van, emailed as the
-sign-in link). Bookings carry `requestId` when they came from the dashboard or the form.
+sign-in link). `clients[].referrals` has the shape above; the store keeps a first name (40 characters) and one of the two
+statuses, and drops everything else, including entries with any other status. Bookings carry `requestId` when they came from the dashboard or the form.
 
 ## Health
 

@@ -16,7 +16,7 @@ var StoreLogic = (function () {
   var PEOPLE_STEP_MIN = 1;
 
   var TABLES = {
-    clients: ["token", "firstName", "referralCode", "quote"],
+    clients: ["token", "firstName", "referralCode", "quote", "referrals"],
     events: ["time", "type", "data"],
     bookings: ["id", "clientToken", "status", "date", "startTime", "endTime", "people", "hours", "address", "total", "outOfHoursFee", "requestId"],
     busy: ["date", "startTime", "endTime"],
@@ -64,6 +64,17 @@ var StoreLogic = (function () {
     if (!(Math.floor(people) === people && people >= PEOPLE_STEP_MIN && people <= MAX_PEOPLE)) return { error: "bad-people" };
     if (CATERING_HOURS.indexOf(hours) < 0) return { error: "bad-hours" };
     return { value: out };
+  }
+
+  // Referrals are shown to the referrer by first name and a status, nothing else.
+  function cleanReferrals(list) {
+    if (!Array.isArray(list)) return [];
+    var out = [];
+    list.forEach(function (r) {
+      if (!r || (r.status !== "booked" && r.status !== "completed")) return;
+      out.push({ firstName: clean(r.firstName, 40), status: r.status });
+    });
+    return out;
   }
 
   function metaValue(db, key) {
@@ -127,6 +138,7 @@ var StoreLogic = (function () {
         return {
           token: clean(c.token, 200), firstName: clean(c.firstName, 40), referralCode: clean(c.referralCode, 12),
           quote: c.quote ? JSON.stringify(c.quote) : "",
+          referrals: JSON.stringify(cleanReferrals(c.referrals)),
         };
       });
       var bookings = (snapshot.bookings || []).map(function (b) {
@@ -197,6 +209,8 @@ var StoreLogic = (function () {
     var asOf = metaValue(db, "asOf");
     var quote = null;
     try { quote = client.quote ? JSON.parse(client.quote) : null; } catch (e) { quote = null; }
+    var referrals = [];
+    try { referrals = client.referrals ? cleanReferrals(JSON.parse(client.referrals)) : []; } catch (e) { referrals = []; }
     var bookings = db.read("bookings").filter(function (b) { return b.clientToken === token; }).map(function (b) {
       return {
         id: b.id, status: b.status, date: b.date, startTime: b.startTime, endTime: b.endTime, people: b.people, hours: b.hours,
@@ -216,6 +230,7 @@ var StoreLogic = (function () {
       stale: WanderRules.isStale(asOf, now),
       client: { firstName: client.firstName, referralCode: client.referralCode },
       quote: quote,
+      referrals: referrals,
       bookings: bookings,
       pending: pendingItems,
       credits: credits,

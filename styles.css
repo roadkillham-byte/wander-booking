@@ -93,3 +93,5 @@ fieldset legend { font-size: 1rem; margin-bottom: 6px; width: 100%; }
   body { font-size: 18px; }
   .ticket dl { grid-template-columns: 4.4rem 1fr; }
 }
+
+.refcode code { font-size: 1.3rem; letter-spacing: 0.08em; background: var(--paper-deep); padding: 0.1em 0.4em; border-radius: 6px; }
