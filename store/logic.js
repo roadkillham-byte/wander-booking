@@ -166,6 +166,25 @@ var StoreLogic = (function () {
     };
   }
 
+  // A spreadsheet cell holds at most 50,000 characters and the price table is larger, so it is stored in numbered pieces of
+  // at most 40,000 and joined back in order when read. A later publish replaces every piece.
+  var PRICE_PIECE_CHARS = 40000;
+  function writePrices(db, prices) {
+    var text = JSON.stringify(prices);
+    var rows = db.read("meta").filter(function (r) { return String(r.key).indexOf("prices") !== 0; });
+    for (var i = 0, n = 0; i < text.length; i += PRICE_PIECE_CHARS, n++) {
+      rows.push({ key: "prices." + n, value: text.slice(i, i + PRICE_PIECE_CHARS) });
+    }
+    db.write("meta", rows);
+  }
+
+  function readPrices(db) {
+    var pieces = db.read("meta").filter(function (r) { return String(r.key).indexOf("prices.") === 0; });
+    if (pieces.length === 0) return metaValue(db, "prices");
+    pieces.sort(function (a, b) { return Number(a.key.slice(7)) - Number(b.key.slice(7)); });
+    return pieces.map(function (r) { return r.value; }).join("");
+  }
+
   // Coffee Van publishes its state. The snapshot replaces clients, bookings, busy times and credits, and drops a hold when
   // its request now appears as a booking, when Coffee Van has acknowledged it (it was booked, which this snapshot lists, or
   // refused, which frees the slot), or when its date has passed. It is safe to send again.
@@ -210,7 +229,7 @@ var StoreLogic = (function () {
       setMeta(db, "reward", JSON.stringify(cleanReward(snapshot.reward)));
       setMeta(db, "asOf", clean(snapshot.asOf, 40));
       setMeta(db, "publishedAt", now);
-      if (snapshot.prices) setMeta(db, "prices", JSON.stringify(snapshot.prices));
+      if (snapshot.prices) writePrices(db, snapshot.prices);
       return { ok: true, clients: clients.length, bookings: bookings.length, busy: busy.length };
     });
   }
@@ -243,7 +262,7 @@ var StoreLogic = (function () {
   }
 
   function prices(db) {
-    var raw = metaValue(db, "prices");
+    var raw = readPrices(db);
     if (!raw) return { ok: false, error: "not-published" };
     var out = JSON.parse(raw);
     out.ok = true;

@@ -578,3 +578,39 @@ test("a credit or an amount with cents survives the store exactly", () => {
   const b = S.session(db, ALEX, NOW).bookings[0];
   assert.deepEqual([b.discount, b.amountDue], [61.9, 557.1]);
 });
+
+// ---- The price table is bigger than one spreadsheet cell (50,000 characters) ----
+test("a price table bigger than one spreadsheet cell is stored in pieces, and comes back whole", () => {
+  const db = makeDb();
+  const prices = { asOf: FRESH, quotes: {}, packs: {}, fees: {} };
+  for (let p = 1; p <= 200; p++) {
+    prices.quotes[p] = {}; prices.packs[p] = {};
+    for (const h of [2, 3, 4, 5, 6]) {
+      prices.quotes[p][h] = p * 10 + h;
+      prices.packs[p][h] = { price: 4 * (p * 10 + h), bonusHours: 1.5, bonusValue: 241 };
+    }
+  }
+  for (let m = 0; m < 24 * 60; m += 30) {
+    const key = String(Math.floor(m / 60)).padStart(2, "0") + ":" + String(m % 60).padStart(2, "0");
+    prices.fees[key] = { 2: 35, 3: 35, 4: 35, 5: 35, 6: 35 };
+  }
+  assert.ok(JSON.stringify(prices).length > 50000, "the table is over one cell's limit");
+  assert.equal(S.publish(db, APP, { asOf: FRESH, clients: [], bookings: [], busy: [], credits: [], prices }, NOW).ok, true);
+  const pieces = db.tables.meta.filter((r) => r.key.startsWith("prices"));
+  assert.ok(pieces.length >= 2, "split into more than one row");
+  for (const piece of pieces) assert.ok(String(piece.value).length <= 45000, "every piece fits in a cell");
+  const back = S.prices(db);
+  assert.equal(back.ok, true);
+  assert.deepEqual(back.quotes, prices.quotes);
+  assert.deepEqual(back.packs, prices.packs);
+  assert.deepEqual(back.fees, prices.fees);
+});
+
+test("a later publish replaces the old price pieces, and a smaller table leaves no stale pieces behind", () => {
+  const db = makeDb();
+  const big = { asOf: FRESH, quotes: { 1: { 2: "x".repeat(60000) } }, packs: {}, fees: {} };
+  publish(db, { prices: big });
+  publish(db, { prices: { asOf: FRESH, quotes: { 1: { 2: 10 } }, packs: {}, fees: {} } });
+  assert.deepEqual(S.prices(db).quotes, { 1: { 2: 10 } });
+  assert.ok(db.tables.meta.filter((r) => r.key.startsWith("prices")).every((r) => String(r.value).length <= 45000));
+});
