@@ -1,7 +1,7 @@
 // End-to-end check of the client journey in a headless browser at phone width: link, Held, Book, the 4-Pack offer,
 // a plain decline, and the confirmation. Run: node test/flow.mjs   (uses the Playwright install in render-engine).
 import { createRequire } from "node:module";
-import { startMock, MOCK_CLIENT_TOKEN } from "../mock.mjs";
+import { startMock, MOCK_CLIENT_TOKEN, MOCK_RETURNING_TOKEN } from "../mock.mjs";
 const require = createRequire(import.meta.url);
 const { chromium } = require(process.env.HOME + "/render-engine/node_modules/playwright-core");
 
@@ -67,6 +67,19 @@ await check("the account screens render from the same session", async () => {
     await page.waitForSelector("#app h2");
     await noOverflowAndNoJunk(v);
   }
+});
+
+await check("a returning client sees Same again with a future date, and one tap holds it; a first-time client does not", async () => {
+  await page.goto(url + "/#k=" + MOCK_CLIENT_TOKEN + "&v=home");
+  await page.waitForSelector("#book");
+  if ((await page.innerText("#app")).includes("Same again")) throw new Error("a first-time client was offered Same again");
+  await page.goto(url + "/#k=" + MOCK_RETURNING_TOKEN);
+  await page.waitForSelector("#again");
+  const label = await page.innerText("#again");
+  if (!/^Same again, /.test(label)) throw new Error("button text: " + label);
+  await noOverflowAndNoJunk("Same again");
+  await page.click("#again");
+  await page.waitForSelector("#pack-yes");
 });
 
 await check("a bad link shows a plain message, never an error page", async () => {

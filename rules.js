@@ -115,7 +115,21 @@ var WanderRules = (function () {
     return { decision: "requested", reasons };
   }
 
+  // "Same again": the last completed morning's date plus 28 days, moved forward a week at a time until it is at least
+  // 3 days after today. It keeps the weekday of the last morning. UTC date arithmetic only, so no zone can shift it.
+  function sameAgainDate(lastDateIso, todayIso) {
+    const last = /^(\d{4})-(\d{2})-(\d{2})$/.exec(lastDateIso || "");
+    const today = /^(\d{4})-(\d{2})-(\d{2})$/.exec(todayIso || "");
+    if (!last || !today) return "";
+    const DAY = 86400000;
+    let date = Date.UTC(Number(last[1]), Number(last[2]) - 1, Number(last[3])) + 28 * DAY;
+    const floor = Date.UTC(Number(today[1]), Number(today[2]) - 1, Number(today[3])) + 3 * DAY;
+    while (date < floor) date += 7 * DAY;
+    return new Date(date).toISOString().slice(0, 10);
+  }
+
   return {
+    sameAgainDate,
     ZONE, DEFAULT_START, TRAVEL_FREE_KM_ONE_WAY, NOTICE_HOURS, VAN_GAP_MINUTES, STALE_AFTER_HOURS,
     sydneyEpoch, instantOf, noticeHours, replyWithinHours, slotIsFree, isStale, decideHold, decideChange, decideCancel,
   };

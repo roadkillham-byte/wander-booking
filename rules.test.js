@@ -89,3 +89,25 @@ test("decideCancel always asks Sam to confirm the credit, and records whether th
     reasons: ["less than 24 hours' notice"],
   });
 });
+
+test("sameAgainDate adds 28 days to a recent date", () => {
+  assert.equal(R.sameAgainDate("2026-10-10", "2026-10-12"), "2026-11-07");
+});
+
+test("sameAgainDate moves forward a week at a time until at least 3 days after today", () => {
+  assert.equal(R.sameAgainDate("2026-10-10", "2026-11-13"), "2026-11-21");
+  assert.equal(R.sameAgainDate("2026-10-10", "2026-11-04"), "2026-11-07"); // exactly 3 days after today stands
+  assert.equal(R.sameAgainDate("2026-10-10", "2026-11-05"), "2026-11-14");
+});
+
+test("sameAgainDate keeps the weekday of the last morning", () => {
+  const weekday = (iso) => new Date(iso + "T12:00:00Z").getUTCDay();
+  for (const today of ["2026-10-12", "2026-11-13", "2027-01-02"]) {
+    assert.equal(weekday(R.sameAgainDate("2026-10-10", today)), weekday("2026-10-10"));
+  }
+});
+
+test("sameAgainDate returns an empty string for a bad date", () => {
+  assert.equal(R.sameAgainDate("", "2026-11-13"), "");
+  assert.equal(R.sameAgainDate("2026-10-10", "soon"), "");
+});

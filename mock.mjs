@@ -14,6 +14,7 @@ const S = require("./store/logic.js");
 
 export const MOCK_APP_TOKEN = "dev-app-token-0123456789abcdef";
 export const MOCK_CLIENT_TOKEN = "CLIENT-TOKEN-FIXTURE-0000000000";
+export const MOCK_RETURNING_TOKEN = "CLIENT-TOKEN-RETURNING-0000000";
 
 const TYPES = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8",
   ".png": "image/png", ".woff2": "font/woff2", ".json": "application/json" };
@@ -61,9 +62,15 @@ export function seededDb(now = new Date().toISOString()) {
   const db = makeDb();
   S.publish(db, MOCK_APP_TOKEN, {
     asOf: now,
-    clients: [{ token: MOCK_CLIENT_TOKEN, firstName: "Alex", referralCode: "K7M2-QXTP",
-      quote: { date: "2026-12-12", startTime: "09:00", people: 20, hours: 3, address: "3 Lake Road, Tea Gardens", total: 619, fee: 0 } }],
-    bookings: [],
+    clients: [
+      { token: MOCK_CLIENT_TOKEN, firstName: "Alex", referralCode: "K7M2-QXTP",
+        quote: { date: "2026-12-12", startTime: "09:00", people: 20, hours: 3, address: "3 Lake Road, Tea Gardens", total: 619, fee: 0 } },
+      { token: MOCK_RETURNING_TOKEN, firstName: "Sam", referralCode: "H4BC-7WDR" },
+    ],
+    bookings: [
+      { id: "bk-old", clientToken: MOCK_RETURNING_TOKEN, status: "completed", date: "2026-10-10", startTime: "09:00", endTime: "12:00",
+        people: 20, hours: 3, address: "1 Main Street, Forster", total: 619, outOfHoursFee: 0, requestId: "" },
+    ],
     busy: [],
     credits: [{ clientToken: MOCK_CLIENT_TOKEN, kind: "referral", label: "10% off your next booking", expiresAt: "2027-11-13" }],
     prices: devPrices(now),

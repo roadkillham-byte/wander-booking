@@ -115,6 +115,8 @@
     var booking = activeBooking();
     if (booking) return renderBookingCard(booking, true);
     var q = state.session && state.session.quote;
+    var last = lastCompleted();
+    if (!q && last) return renderSameAgain(last);
     if (!q) return renderPick({ date: "", startTime: "09:00", people: 20, hours: 3, address: "" }, "new");
     var total = Number(q.total) + Number(q.fee || 0);
     var inner = '<section class="rise d1"><h2 class="rule">Your morning</h2>' +
@@ -131,6 +133,31 @@
       '<p class="note"><a href="#k=' + encodeURIComponent(state.k) + '&v=pick">Change the date, time or people</a></p></section>';
     track("view", { v: "held" });
     return shell(inner + promisesHtml(), { step: 1, greet: "Hi " + firstName() + ". Here is your morning." });
+  }
+
+  function lastCompleted() {
+    var done = ((state.session && state.session.bookings) || []).filter(function (b) { return b.status === "completed"; });
+    done.sort(function (a, b) { return a.date < b.date ? 1 : -1; });
+    return done[0] || null;
+  }
+
+  // Same again: a returning client's last morning, on the same weekday a few weeks on, held with one tap.
+  function renderSameAgain(last) {
+    var today = new Date().toLocaleDateString("en-CA", { timeZone: "Australia/Sydney" });
+    var date = WanderRules.sameAgainDate(last.date, today);
+    var base = quoteFor(Number(last.people), Number(last.hours));
+    var fee = feeFor(last.startTime, Number(last.hours));
+    var short = new Date(date + "T12:00:00").toLocaleDateString("en-AU", { weekday: "long", day: "numeric", month: "long" });
+    var inner = '<section class="rise d1"><h2 class="rule">Same again?</h2>' +
+      '<div class="ticket"><dl><dt>Date</dt><dd>' + esc(dayName(date)) + "</dd><dt>Start</dt><dd>" + esc(clock(last.startTime)) +
+      "</dd><dt>People</dt><dd>" + esc(last.people) + "</dd><dt>Hours</dt><dd>" + esc(last.hours) + "</dd><dt>Where</dt><dd>" + esc(last.address) + "</dd></dl>" +
+      (base == null ? "" : '<div class="price"><strong>' + money(base + fee) + "</strong><span>incl. GST</span></div>") + "</div>" +
+      '<p class="note">The same morning as last time. We hold the date and reply within 24 hours.</p>' +
+      '<button type="button" class="go" id="again" data-date="' + esc(date) + '" data-start="' + esc(last.startTime) + '" data-people="' + esc(last.people) +
+      '" data-hours="' + esc(last.hours) + '" data-address="' + esc(last.address) + '">Same again, ' + esc(short) + "</button>" +
+      '<p class="note"><a href="#k=' + encodeURIComponent(state.k) + '&v=pick">Pick a different date or time</a></p></section>';
+    track("view", { v: "same-again" });
+    return shell(inner + promisesHtml(), { step: 0, greet: "Welcome back, " + firstName() + "." });
   }
 
   function renderBookingCard(b, isHome) {
@@ -303,7 +330,7 @@
   function uid() { return "req-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8); }
 
   function bind() {
-    var book = document.getElementById("book");
+    var book = document.getElementById("book") || document.getElementById("again");
     if (book) book.addEventListener("click", function () {
       if (state.busy) return;
       state.busy = true;
@@ -312,7 +339,7 @@
         hours: Number(book.dataset.hours), address: book.dataset.address };
       WanderApi.request({ k: state.k, kind: "hold", requestId: uid(), date: state.lastHold.date, startTime: state.lastHold.startTime,
         people: state.lastHold.people, hours: state.lastHold.hours, address: state.lastHold.address,
-        shownTotal: quoteOf(), shownFee: feeFor(book.dataset.start, Number(book.dataset.hours)) })
+        shownTotal: shownTotalFor(state.lastHold), shownFee: feeFor(book.dataset.start, Number(book.dataset.hours)) })
         .then(function (r) { handle(r, function (resp) { showPage(renderUpgradeOrConfirm(resp)); }); });
     });
     var pick = document.getElementById("pick");
@@ -375,6 +402,12 @@
     });
   }
 
+  // The price the page showed for this morning: the published table, or the quote the client was sent.
+  function shownTotalFor(hold) {
+    var base = quoteFor(hold.people, hold.hours);
+    return base == null ? quoteOf() : base + feeFor(hold.startTime, hold.hours);
+  }
+
   function quoteOf() {
     var q = state.session && state.session.quote;
     return q ? Number(q.total) + Number(q.fee || 0) : null;
@@ -429,7 +462,12 @@
   function showRoute() {
     var v = state.route.v;
     var html;
-    if (v === "pick" || v === "change") html = renderPick(v === "change" ? (activeBooking() || {}) : (state.session.quote || { date: "", startTime: "09:00", people: 20, hours: 3, address: "" }), v === "change" ? "change" : "new");
+    if (v === "pick" || v === "change") {
+      var seedFrom = state.session.quote || lastCompleted();
+      var seed = seedFrom ? { date: state.session.quote ? seedFrom.date : "", startTime: seedFrom.startTime || "09:00", people: seedFrom.people, hours: seedFrom.hours, address: seedFrom.address || "" }
+        : { date: "", startTime: "09:00", people: 20, hours: 3, address: "" };
+      html = renderPick(v === "change" ? (activeBooking() || {}) : seed, v === "change" ? "change" : "new");
+    }
     else if (v === "bookings") html = renderBookings();
     else if (v === "booking") html = renderBooking();
     else if (v === "pack") html = renderPack();
