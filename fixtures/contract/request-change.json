@@ -1,0 +1,2 @@
+{ "k": "CLIENT-TOKEN-FIXTURE", "kind": "change", "requestId": "req-client-0002",
+  "bookingId": "bk-101", "date": "2026-12-05", "startTime": "10:00", "people": 20, "hours": 3, "address": "1 Main Street, Forster" }

@@ -1,0 +1,10 @@
+{ "k": "APP-TOKEN-FIXTURE", "snapshot": {
+  "asOf": "2026-12-01T06:00:00+11:00",
+  "clients": [ { "token": "CLIENT-TOKEN-FIXTURE", "firstName": "Alex", "referralCode": "K7M2-QXTP" } ],
+  "bookings": [ { "id": "bk-101", "clientToken": "CLIENT-TOKEN-FIXTURE", "status": "held", "date": "2026-12-05",
+    "startTime": "09:00", "endTime": "12:00", "people": 20, "hours": 3, "address": "1 Main Street, Forster",
+    "total": 619, "outOfHoursFee": 0, "requestId": null } ],
+  "busy": [ { "date": "2026-12-05", "startTime": "09:00", "endTime": "12:00" } ],
+  "credits": [ { "clientToken": "CLIENT-TOKEN-FIXTURE", "kind": "referral", "label": "10% off your next booking", "expiresAt": "2027-11-13" } ],
+  "packs": []
+} }

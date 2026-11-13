@@ -1,63 +1,91 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const R = require("./rules.js");
+globalThis.WanderRules = R;
 
-test("outOfHoursFee is nothing inside 7:00 to 4:00", () => {
-  assert.deepEqual(R.outOfHoursFee("09:00", 3), { fee: 0, startedHours: 0 });
-  assert.deepEqual(R.outOfHoursFee("07:00", 9), { fee: 0, startedHours: 0 });
+test("sydneyEpoch uses AEDT (+11) in December and AEST (+10) in July", () => {
+  assert.equal(new Date(R.sydneyEpoch("2026-12-05", "09:00")).toISOString(), "2026-12-04T22:00:00.000Z");
+  assert.equal(new Date(R.sydneyEpoch("2026-07-05", "09:00")).toISOString(), "2026-07-04T23:00:00.000Z");
 });
 
-test("outOfHoursFee charges $35 per started hour outside the window", () => {
-  assert.deepEqual(R.outOfHoursFee("06:00", 3), { fee: 35, startedHours: 1 });
-  assert.deepEqual(R.outOfHoursFee("06:30", 2), { fee: 35, startedHours: 1 });
-  assert.deepEqual(R.outOfHoursFee("15:00", 3), { fee: 70, startedHours: 2 });
-  assert.deepEqual(R.outOfHoursFee("05:00", 4), { fee: 70, startedHours: 2 });
+test("sydneyEpoch is right on both sides of the April and October daylight saving changes", () => {
+  // Sydney's clocks went back at 3:00 am on 5 April 2026 and forward at 2:00 am on 4 October 2026.
+  assert.equal(new Date(R.sydneyEpoch("2026-04-04", "12:00")).toISOString(), "2026-04-04T01:00:00.000Z");
+  assert.equal(new Date(R.sydneyEpoch("2026-04-06", "12:00")).toISOString(), "2026-04-06T02:00:00.000Z");
+  assert.equal(new Date(R.sydneyEpoch("2026-10-03", "12:00")).toISOString(), "2026-10-03T02:00:00.000Z");
+  assert.equal(new Date(R.sydneyEpoch("2026-10-05", "12:00")).toISOString(), "2026-10-05T01:00:00.000Z");
 });
 
-test("outOfHoursFee never throws on a bad time or length", () => {
-  assert.deepEqual(R.outOfHoursFee("", 3), { fee: 0, startedHours: 0 });
-  assert.deepEqual(R.outOfHoursFee("09:00", 0), { fee: 0, startedHours: 0 });
-  assert.deepEqual(R.outOfHoursFee(undefined, undefined), { fee: 0, startedHours: 0 });
+test("sydneyEpoch returns NaN for a bad date or time rather than throwing", () => {
+  assert.ok(Number.isNaN(R.sydneyEpoch("", "09:00")));
+  assert.ok(Number.isNaN(R.sydneyEpoch("2026-12-05", "9am")));
+});
+
+test("instantOf reads a time with no offset as Sydney time, and honours an explicit offset", () => {
+  assert.equal(new Date(R.instantOf("2026-12-01T06:00:00")).toISOString(), "2026-11-30T19:00:00.000Z");
+  assert.equal(new Date(R.instantOf("2026-12-01T06:00:00+11:00")).toISOString(), "2026-11-30T19:00:00.000Z");
+  assert.equal(new Date(R.instantOf("2026-12-01T19:00:00Z")).toISOString(), "2026-12-01T19:00:00.000Z");
+});
+
+test("noticeHours counts from Sydney's clock, across the daylight saving change", () => {
+  // 7 am on 4 April is AEDT (+11); 9 am on 5 April is AEST (+10), after the clocks went back. Elapsed time is 27 hours.
+  const hours = R.noticeHours("2026-04-04T07:00:00", "2026-04-05", "09:00");
+  assert.equal(Math.round(hours * 10) / 10, 27);
 });
 
 test("replyWithinHours is 24 normally and 2 inside 48 hours of the event", () => {
-  assert.equal(R.replyWithinHours("2026-11-13T09:00:00Z", "2026-12-05T09:00:00Z"), 24);
-  assert.equal(R.replyWithinHours("2026-11-13T09:00:00Z", "2026-11-14T09:00:00Z"), 2);
-  assert.equal(R.replyWithinHours("bad", "2026-11-14T09:00:00Z"), 24);
+  assert.equal(R.replyWithinHours("2026-11-13T09:00:00", "2026-12-05", "09:00"), 24);
+  assert.equal(R.replyWithinHours("2026-11-13T09:00:00", "2026-11-14", "09:00"), 2);
 });
 
 test("slotIsFree keeps an hour between bookings for travel", () => {
   const day = [{ date: "2026-12-05", startTime: "09:00", endTime: "12:00" }];
   assert.equal(R.slotIsFree("2026-12-05", "13:00", 2, day), true);
   assert.equal(R.slotIsFree("2026-12-05", "12:30", 2, day), false);
-  assert.equal(R.slotIsFree("2026-12-05", "06:00", 2, day), true); // ends 08:00, an hour before the 09:00 booking
+  assert.equal(R.slotIsFree("2026-12-05", "06:00", 2, day), true); // ends 08:00, an hour before 09:00
   assert.equal(R.slotIsFree("2026-12-05", "06:30", 2, day), false); // ends 08:30, no gap before 09:00
   assert.equal(R.slotIsFree("2026-12-06", "09:00", 3, day), true);
+  assert.equal(R.slotIsFree("2026-12-05", "09:00", 0, day), false);
 });
 
-test("decideChange applies a change that is free, in range and on 24 hours' notice", () => {
+test("isStale is true after six hours, measured in Sydney time", () => {
+  assert.equal(R.isStale("2026-12-01T06:00:00", "2026-12-01T11:59:00"), false);
+  assert.equal(R.isStale("2026-12-01T06:00:00", "2026-12-01T12:01:00"), true);
+  assert.equal(R.isStale("", "2026-12-01T12:01:00"), true);
+});
+
+test("decideHold holds a free, fresh, 24-hour-notice slot, and otherwise asks Sam without an error", () => {
+  const req = { date: "2026-12-12", startTime: "09:00", hours: 3, travelKm: 20 };
+  assert.deepEqual(R.decideHold(req, [], "2026-12-01T06:00:00", "2026-12-01T07:00:00"), { decision: "held", reasons: [] });
+
+  const taken = R.decideHold(req, [{ date: "2026-12-12", startTime: "09:00", endTime: "12:00" }], "2026-12-01T06:00:00", "2026-12-01T07:00:00");
+  assert.equal(taken.decision, "requested");
+  assert.deepEqual(taken.reasons, ["the time is not free on the van"]);
+
+  const stale = R.decideHold(req, [], "2026-12-01T06:00:00", "2026-12-01T13:00:00");
+  assert.equal(stale.decision, "requested");
+  assert.ok(stale.reasons.includes("availability is out of date"));
+});
+
+test("decideChange applies a change that is free, in range and on 24 hours' notice, and asks Sam otherwise", () => {
   const booking = { date: "2026-12-05", startTime: "09:00" };
   const others = [{ date: "2026-12-05", startTime: "14:00", endTime: "16:00" }];
-  const change = { date: "2026-12-05", startTime: "09:00", hours: 3, travelKm: 20 };
-  assert.deepEqual(R.decideChange(booking, change, others, "2026-11-13T09:00:00"), { decision: "apply", reasons: [] });
-});
+  const change = { date: "2026-12-05", startTime: "10:00", hours: 3, travelKm: 20 };
+  assert.deepEqual(R.decideChange(booking, change, others, "2026-12-01T06:00:00", "2026-12-01T07:00:00").decision, "applied");
 
-test("decideChange asks Sam when the notice is short, the slot is taken or travel is too far", () => {
-  const booking = { date: "2026-11-14", startTime: "09:00" };
-  const shortNotice = R.decideChange(booking, { date: "2026-11-14", startTime: "10:00", hours: 2, travelKm: 0 }, [], "2026-11-13T12:00:00");
-  assert.equal(shortNotice.decision, "request");
-  assert.ok(shortNotice.reasons.includes("less than 24 hours' notice"));
+  const late = R.decideChange({ date: "2026-11-14", startTime: "09:00" }, { date: "2026-11-14", startTime: "10:00", hours: 2, travelKm: 0 }, [],
+    "2026-11-13T12:00:00", "2026-11-13T12:00:00");
+  assert.equal(late.decision, "requested");
+  assert.ok(late.reasons.includes("less than 24 hours' notice"));
 
-  const far = R.decideChange({ date: "2026-12-05", startTime: "09:00" }, { date: "2026-12-05", startTime: "09:00", hours: 2, travelKm: 80 }, [], "2026-11-13T09:00:00");
-  assert.equal(far.decision, "request");
+  const far = R.decideChange(booking, { date: "2026-12-05", startTime: "09:00", hours: 2, travelKm: 80 }, [], "2026-12-01T06:00:00", "2026-12-01T07:00:00");
   assert.deepEqual(far.reasons, ["the address is beyond free travel"]);
-
-  const taken = R.decideChange({ date: "2026-12-05", startTime: "09:00" }, { date: "2026-12-05", startTime: "09:00", hours: 2, travelKm: 0 },
-    [{ date: "2026-12-05", startTime: "10:00", endTime: "12:00" }], "2026-11-13T09:00:00");
-  assert.deepEqual(taken.reasons, ["the new time is not free on the van"]);
 });
 
-test("decideCancel gives a credit at 24 hours or more, and asks Sam inside that", () => {
-  assert.deepEqual(R.decideCancel({ date: "2026-12-05", startTime: "09:00" }, "2026-11-13T09:00:00"), { decision: "credit", reasons: [] });
-  assert.equal(R.decideCancel({ date: "2026-11-13", startTime: "18:00" }, "2026-11-13T09:00:00").decision, "request");
+test("decideCancel always asks Sam to confirm the credit, and records whether the notice was 24 hours or more", () => {
+  assert.deepEqual(R.decideCancel({ date: "2026-12-05", startTime: "09:00" }, "2026-12-01T07:00:00"), { decision: "requested", reasons: [] });
+  assert.deepEqual(R.decideCancel({ date: "2026-12-01", startTime: "18:00" }, "2026-12-01T09:00:00"), {
+    decision: "requested",
+    reasons: ["less than 24 hours' notice"],
+  });
 });

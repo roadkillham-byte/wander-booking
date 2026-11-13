@@ -1,61 +1,75 @@
-// Client dashboard rules, pure and dependency-free. Every decision here is one the dashboard can make without Sam,
-// or one that becomes a request to Sam. Prices are never computed here: they come from Coffee Van's quote.
+// Client dashboard rules: pure, dependency-free, and free of prices. Every decision is either one the system can make
+// without Sam, or a request to Sam. Prices and the out-of-hours fee come from Coffee Van (docs/contract.md, prices).
+// All wall-clock times are Australia/Sydney, converted to instants explicitly so a browser, Node or Apps Script in another
+// zone gives the same answer.
 // Source: docs/superpowers/specs/2026-11-13-client-dashboard-design.md, sections 6 and 7.
-(function (root, factory) {
-  const api = factory();
-  if (typeof module === "object" && module.exports) module.exports = api;
-  else root.WanderRules = api;
-})(typeof self !== "undefined" ? self : this, function () {
-  const STANDARD_START = "07:00";
-  const STANDARD_END = "16:00";
+// Plain script: a global `WanderRules` in the browser and Apps Script, and a module export under Node.
+var WanderRules = (function () {
+  const ZONE = "Australia/Sydney";
   const DEFAULT_START = "09:00";
-  const OUT_OF_HOURS_FEE_PER_HOUR = 35;
   const TRAVEL_FREE_KM_ONE_WAY = 50;
   const NOTICE_HOURS = 24;
   const SHORT_NOTICE_WINDOW_HOURS = 48;
   const REPLY_HOURS = 24;
   const SHORT_REPLY_HOURS = 2;
-  const VAN_GAP_MINUTES = 60; // travel between two bookings on one van (to confirm)
+  const VAN_GAP_MINUTES = 60; // travel between two bookings on one van (to confirm with Sam)
+  const STALE_AFTER_HOURS = 6;
+
+  const partsFormat = new Intl.DateTimeFormat("en-AU", {
+    timeZone: ZONE, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit",
+  });
 
   function minutesOf(hhmm) {
     const m = /^(\d{2}):(\d{2})$/.exec(hhmm || "");
     return m ? Number(m[1]) * 60 + Number(m[2]) : null;
   }
 
-  // Fee for a morning that starts at `start` and runs `hours`: each started hour outside the standard window costs
-  // OUT_OF_HOURS_FEE_PER_HOUR. Returns { fee, startedHours } and never throws; an unreadable time is { fee: 0, startedHours: 0 }.
-  function outOfHoursFee(start, hours) {
-    const from = minutesOf(start);
-    const h = Number(hours);
-    if (from === null || !(h > 0)) return { fee: 0, startedHours: 0 };
-    const to = from + Math.round(h * 60);
-    const lo = minutesOf(STANDARD_START), hi = minutesOf(STANDARD_END);
-    let outside = 0;
-    for (let m = from; m < to; m++) if (m < lo || m >= hi) outside++;
-    const startedHours = Math.ceil(outside / 60);
-    return { fee: startedHours * OUT_OF_HOURS_FEE_PER_HOUR, startedHours };
+  // Milliseconds since the epoch of a Sydney wall-clock date and time ("YYYY-MM-DD", "HH:MM").
+  // The offset is read from the zone itself for that instant, so daylight saving is right on both sides of the change.
+  function sydneyEpoch(date, hhmm) {
+    const d = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date || "");
+    const mins = minutesOf(hhmm);
+    if (!d || mins === null) return NaN;
+    const wall = Date.UTC(Number(d[1]), Number(d[2]) - 1, Number(d[3]), Math.floor(mins / 60), mins % 60, 0);
+    let guess = wall;
+    for (let i = 0; i < 2; i++) {
+      const p = {};
+      for (const part of partsFormat.formatToParts(new Date(guess))) p[part.type] = part.value;
+      const seen = Date.UTC(Number(p.year), Number(p.month) - 1, Number(p.day), Number(p.hour), Number(p.minute), Number(p.second));
+      guess += wall - seen;
+    }
+    return guess;
   }
 
-  // Hours inside which a reply is promised: 24 normally, 2 when the booking is within 48 hours of the request.
-  function replyWithinHours(requestedAtIso, eventStartIso) {
-    const requested = Date.parse(requestedAtIso), event = Date.parse(eventStartIso);
-    if (Number.isNaN(requested) || Number.isNaN(event)) return REPLY_HOURS;
-    const hoursAway = (event - requested) / 3600000;
+  // An ISO instant. With no offset, the text is read as Sydney wall-clock time, never as the machine's zone.
+  function instantOf(iso) {
+    if (typeof iso !== "string") return NaN;
+    const m = /^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2})(?::\d{2}(?:\.\d+)?)?(Z|[+-]\d{2}:?\d{2})?$/.exec(iso.trim());
+    if (!m) return NaN;
+    if (m[3]) return Date.parse(iso.trim());
+    return sydneyEpoch(m[1], m[2]);
+  }
+
+  // Hours from `nowIso` to the booking's start (Sydney).
+  function noticeHours(nowIso, date, startTime) {
+    return (sydneyEpoch(date, startTime || DEFAULT_START) - instantOf(nowIso)) / 3600000;
+  }
+
+  // The reply promise: 24 hours, or 2 when the event is within 48 hours of the request.
+  function replyWithinHours(requestedAtIso, date, startTime) {
+    const hoursAway = noticeHours(requestedAtIso, date, startTime);
+    if (Number.isNaN(hoursAway)) return REPLY_HOURS;
     return hoursAway <= SHORT_NOTICE_WINDOW_HOURS ? SHORT_REPLY_HOURS : REPLY_HOURS;
   }
 
-  // Whole hours from `nowIso` to the booking's start.
-  function noticeHours(nowIso, startIso) {
-    return (Date.parse(startIso) - Date.parse(nowIso)) / 3600000;
-  }
-
-  // A proposed start is free when no other booking on the van overlaps it, with a gap for travel either side.
-  // `bookings` are { date, startTime, endTime } for the same day; times are "HH:MM".
+  // A slot is free when no other booking on the van overlaps it, with a gap for travel either side.
+  // `bookings` are { date, startTime, endTime } for the day; times are "HH:MM".
   function slotIsFree(date, startTime, hours, bookings) {
     const from = minutesOf(startTime);
-    if (from === null) return false;
-    const to = from + Math.round(hours * 60);
-    return bookings
+    if (from === null || !(Number(hours) > 0)) return false;
+    const to = from + Math.round(Number(hours) * 60);
+    return (bookings || [])
       .filter((b) => b.date === date && minutesOf(b.startTime) !== null)
       .every((b) => {
         const bFrom = minutesOf(b.startTime);
@@ -64,29 +78,46 @@
       });
   }
 
-  // A change to a confirmed booking. The system applies it at once when all three hold, and otherwise asks Sam:
-  // the new slot is free, the address is inside free travel, and the notice is 24 hours or more.
-  // `change`: { date, startTime, hours, travelKm }. `others`: the van's other bookings. Returns { decision, reasons }.
-  function decideChange(booking, change, others, nowIso) {
-    const reasons = [];
-    const startIso = `${booking.date}T${booking.startTime || DEFAULT_START}:00`;
-    if (noticeHours(nowIso, startIso) < NOTICE_HOURS) reasons.push("less than 24 hours' notice");
-    if (!slotIsFree(change.date, change.startTime, change.hours, others)) reasons.push("the new time is not free on the van");
-    if (Number(change.travelKm) > TRAVEL_FREE_KM_ONE_WAY) reasons.push("the address is beyond free travel");
-    return reasons.length === 0 ? { decision: "apply", reasons } : { decision: "request", reasons };
+  // Availability older than six hours is stale: a client's pick then becomes a request, never an automatic yes.
+  function isStale(asOfIso, nowIso) {
+    const asOf = instantOf(asOfIso), now = instantOf(nowIso);
+    if (Number.isNaN(asOf) || Number.isNaN(now)) return true;
+    return (now - asOf) / 3600000 > STALE_AFTER_HOURS;
   }
 
-  // Cancelling 24 hours or more ahead gives the full amount as a credit; less than that is asked of Sam.
+  // Hold: applied at once ("held") only when the slot is free, the availability is fresh and the notice is at least
+  // 24 hours. Anything else is a request. Never an error.
+  // `others` are the van's busy times plus holds still waiting, so two clients cannot take one slot.
+  function decideHold(request, others, asOfIso, nowIso) {
+    const reasons = [];
+    if (isStale(asOfIso, nowIso)) reasons.push("availability is out of date");
+    if (noticeHours(nowIso, request.date, request.startTime) < NOTICE_HOURS) reasons.push("less than 24 hours' notice");
+    if (!slotIsFree(request.date, request.startTime, request.hours, others)) reasons.push("the time is not free on the van");
+    if (Number(request.travelKm || 0) > TRAVEL_FREE_KM_ONE_WAY) reasons.push("the address is beyond free travel");
+    return { decision: reasons.length === 0 ? "held" : "requested", reasons };
+  }
+
+  // A change to a confirmed booking is applied at once when the new slot is free, the address is inside free travel,
+  // and the notice is 24 hours or more. Otherwise it is asked of Sam.
+  function decideChange(booking, change, others, asOfIso, nowIso) {
+    const reasons = [];
+    if (isStale(asOfIso, nowIso)) reasons.push("availability is out of date");
+    if (noticeHours(nowIso, booking.date, booking.startTime) < NOTICE_HOURS) reasons.push("less than 24 hours' notice");
+    if (!slotIsFree(change.date, change.startTime, change.hours, others)) reasons.push("the new time is not free on the van");
+    if (Number(change.travelKm || 0) > TRAVEL_FREE_KM_ONE_WAY) reasons.push("the address is beyond free travel");
+    return { decision: reasons.length === 0 ? "applied" : "requested", reasons };
+  }
+
+  // Cancelling 24 hours or more ahead is promised a credit of the full amount. The amount credit is not built yet,
+  // so every cancellation is a request for Sam to confirm the credit (docs/contract.md, Requests).
   function decideCancel(booking, nowIso) {
-    const startIso = `${booking.date}T${booking.startTime || DEFAULT_START}:00`;
-    return noticeHours(nowIso, startIso) >= NOTICE_HOURS
-      ? { decision: "credit", reasons: [] }
-      : { decision: "request", reasons: ["less than 24 hours' notice"] };
+    const reasons = noticeHours(nowIso, booking.date, booking.startTime) >= NOTICE_HOURS ? [] : ["less than 24 hours' notice"];
+    return { decision: "requested", reasons };
   }
 
   return {
-    STANDARD_START, STANDARD_END, DEFAULT_START, OUT_OF_HOURS_FEE_PER_HOUR, TRAVEL_FREE_KM_ONE_WAY,
-    NOTICE_HOURS, VAN_GAP_MINUTES,
-    outOfHoursFee, replyWithinHours, slotIsFree, decideChange, decideCancel,
+    ZONE, DEFAULT_START, TRAVEL_FREE_KM_ONE_WAY, NOTICE_HOURS, VAN_GAP_MINUTES, STALE_AFTER_HOURS,
+    sydneyEpoch, instantOf, noticeHours, replyWithinHours, slotIsFree, isStale, decideHold, decideChange, decideCancel,
   };
-});
+})();
+if (typeof module === "object" && module.exports) module.exports = WanderRules;
