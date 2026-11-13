@@ -9,8 +9,8 @@ Nothing here is live. Each step below is a click or a yes from Sam. Do them in t
 3. Project Settings > Script properties:
    - `STORE_SHEET_ID` = the Sheet ID.
    - `APP_TOKEN` = 16+ random characters. Put the same value in Coffee Van's `~/.config/coffee-van/dashboard.env` as `DASHBOARD_APP_TOKEN` (Claude can write that file; never paste the value into chat or notes).
-4. Run `selfTestRules_` from the editor once. The log must say "rules OK in this runtime". If it does not, stop and tell Claude.
-5. Run `sendTestAlert_` from the editor once. Google asks you to allow the script to send you email: allow it. A test message arrives. After that, any error in the store reaches you by email (at most one an hour), and clients meeting it are told their request could not be confirmed.
+4. Run `runSelfTest` from the editor once. The log must say "rules OK in this runtime". If it does not, stop and tell Claude.
+5. Run `runTestAlert` from the editor once. Google asks you to allow the script to send you email: allow it. A test message arrives. After that, any error in the store reaches you by email (at most one an hour), and clients meeting it are told their request could not be confirmed.
 6. Deploy > New deployment > Web app: execute as me, access "Anyone". Copy the `/exec` address.
 
 ## 2. Page (GitHub Pages, public)

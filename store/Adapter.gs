@@ -124,3 +124,7 @@ function selfTestRules_() {
   var bad = checks.filter(function (c) { return c[0] !== c[1]; });
   Logger.log(bad.length === 0 ? 'rules OK in this runtime' : 'rules MISMATCH: ' + JSON.stringify(bad));
 }
+
+// The editor's Run menu hides any function whose name ends in an underscore, so these two public names are what to run.
+function runSelfTest() { selfTestRules_(); }
+function runTestAlert() { sendTestAlert_(); }
