@@ -8,10 +8,10 @@
     TIMES.push(String(Math.floor(mins / 60)).padStart(2, "0") + ":" + String(mins % 60).padStart(2, "0"));
   }
   var PROMISES = [
-    "Late by more than 15 minutes? Your first hour of service is free.",
-    "We don't turn up? You get a full refund.",
-    "A coffee isn't right? We remake it or refund it.",
-    "Cancel up to 24 hours ahead, and the full amount goes toward your next booking.",
+    "15 minutes late or more? Your first hour is free.",
+    "We don't turn up? Full refund, no ifs or buts.",
+    "Coffee not quite right? Remade or refunded on the spot.",
+    "Cancelling up to 24 hours before? The full amount goes towards your next booking.",
   ];
   var INCLUDES = [
     "Unlimited coffee, tea and hot chocolate for every guest",
