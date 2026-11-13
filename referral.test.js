@@ -65,3 +65,11 @@ test("normalise gives the canonical form or null, and never throws", () => {
   assert.equal(normalise(undefined), null);
   assert.equal(normalise("K7M2-QXTPX"), null);
 });
+
+test("the friend's note tells them about their 10% and starts hidden", () => {
+  const html = require("node:fs").readFileSync(require("node:path").join(__dirname, "index.html"), "utf8");
+  const note = /<p class="ref-note" id="ref-note"([^>]*)>([^<]*)<\/p>/.exec(html);
+  assert.ok(note, "the note is on the page");
+  assert.match(note[1], /\bhidden\b/, "it is hidden until the form's referral question is set up");
+  assert.equal(note[2], "A friend sent you, so your first morning is 10% off. Send your details and we will thank them.");
+});
