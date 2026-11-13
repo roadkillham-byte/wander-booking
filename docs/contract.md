@@ -48,6 +48,8 @@ adapter in `store/Adapter.gs`) and Coffee Van's sync (`server/dashboardSync.mjs`
 | `pack` | `date, startTime, people, hours` | `requested` (Sam confirms the first date; no charge) |
 | `call` | `when, note` | `requested` |
 
+`hold` and `change` may also send `shownTotal` and `shownFee`: the total and out-of-hours fee the page showed. Coffee Van compares them with its own price and flags any difference; it books at its own price.
+
 Response: `{ok:true, outcome, replyWithinHours, message, bookingId?}`. `message` is ready-to-show client copy.
 Examples: `fixtures/contract/request-hold.json` and its two responses.
 

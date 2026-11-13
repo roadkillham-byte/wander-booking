@@ -16,7 +16,8 @@ var StoreLogic = (function () {
   var PEOPLE_STEP_MIN = 1;
 
   var TABLES = {
-    clients: ["token", "firstName", "referralCode"],
+    clients: ["token", "firstName", "referralCode", "quote"],
+    events: ["time", "type", "data"],
     bookings: ["id", "clientToken", "status", "date", "startTime", "endTime", "people", "hours", "address", "total", "outOfHoursFee", "requestId"],
     busy: ["date", "startTime", "endTime"],
     holds: ["requestId", "id", "clientToken", "date", "startTime", "endTime", "people", "hours", "address", "createdAt"],
@@ -45,7 +46,11 @@ var StoreLogic = (function () {
   function readRequest(body) {
     var people = Number(body.people);
     var hours = Number(body.hours);
+    var shownTotal = body.shownTotal === undefined || body.shownTotal === null || body.shownTotal === "" ? null : Number(body.shownTotal);
+    var shownFee = body.shownFee === undefined || body.shownFee === null || body.shownFee === "" ? null : Number(body.shownFee);
     var out = {
+      shownTotal: shownTotal,
+      shownFee: shownFee,
       requestId: clean(body.requestId, 80),
       date: clean(body.date, 10),
       startTime: clean(body.startTime, 5),
@@ -119,7 +124,10 @@ var StoreLogic = (function () {
     if (!snapshot || typeof snapshot !== "object" || !isDate(String(snapshot.asOf || "").slice(0, 10))) return { ok: false, error: "bad-snapshot" };
     return db.lock(function () {
       var clients = (snapshot.clients || []).filter(function (c) { return clean(c.token, 200) !== ""; }).map(function (c) {
-        return { token: clean(c.token, 200), firstName: clean(c.firstName, 40), referralCode: clean(c.referralCode, 12) };
+        return {
+          token: clean(c.token, 200), firstName: clean(c.firstName, 40), referralCode: clean(c.referralCode, 12),
+          quote: c.quote ? JSON.stringify(c.quote) : "",
+        };
       });
       var bookings = (snapshot.bookings || []).map(function (b) {
         return {
@@ -187,6 +195,8 @@ var StoreLogic = (function () {
     var client = clientBy(db, token);
     if (!client) return { ok: false, error: "not-found" };
     var asOf = metaValue(db, "asOf");
+    var quote = null;
+    try { quote = client.quote ? JSON.parse(client.quote) : null; } catch (e) { quote = null; }
     var bookings = db.read("bookings").filter(function (b) { return b.clientToken === token; }).map(function (b) {
       return {
         id: b.id, status: b.status, date: b.date, startTime: b.startTime, endTime: b.endTime, people: b.people, hours: b.hours,
@@ -205,6 +215,7 @@ var StoreLogic = (function () {
       asOf: asOf,
       stale: WanderRules.isStale(asOf, now),
       client: { firstName: client.firstName, referralCode: client.referralCode },
+      quote: quote,
       bookings: bookings,
       pending: pendingItems,
       credits: credits,
@@ -303,8 +314,22 @@ var StoreLogic = (function () {
     });
   }
 
+  var EVENT_TYPES = ["view", "cta", "upgrade-shown", "upgrade-accepted", "upgrade-declined", "booked", "calendar", "referral-shared"];
+
+  // Funnel events for Sam's conversion view. Nothing identifying is stored beyond the client token's presence.
+  function event(db, body, now) {
+    var client = clientBy(db, body && body.k);
+    if (!client) return { ok: false, error: "not-found" };
+    var type = clean(body.type, 24);
+    if (EVENT_TYPES.indexOf(type) < 0) return { ok: false, error: "unknown-event" };
+    var data = clean(JSON.stringify(body.data || {}), 200);
+    db.append("events", { time: now, type: type, data: data });
+    return { ok: true };
+  }
+
   return {
-    TABLES: TABLES, CONTRACT_VERSION: CONTRACT_VERSION,
+    TABLES: TABLES, CONTRACT_VERSION: CONTRACT_VERSION, EVENT_TYPES: EVENT_TYPES,
+    event: event,
     health: health, publish: publish, pending: pending, ack: ack, prices: prices, session: session, request: request,
     endTimeFor: endTimeFor, readRequest: readRequest,
   };

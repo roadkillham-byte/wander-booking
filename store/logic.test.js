@@ -209,3 +209,25 @@ test("health reports the contract version, the as-of time and the stale threshol
   assert.equal(h.staleAfterHours, 6);
   assert.equal(h.asOf, FRESH);
 });
+
+test("the session carries the quote Coffee Van published for the client, and nothing for a client without one", () => {
+  const db = makeDb();
+  publish(db, { clients: [
+    { token: "TOKEN-ALEX-0000000000000001", firstName: "Alex", referralCode: "K7M2-QXTP",
+      quote: { date: "2026-12-12", startTime: "09:00", people: 20, hours: 3, address: "3 Lake Road", total: 619, fee: 0 } },
+    { token: "TOKEN-SAM-00000000000000002", firstName: "Sam", referralCode: "H4BC-7WDR" },
+  ] });
+  assert.equal(S.session(db, "TOKEN-ALEX-0000000000000001", NOW).quote.total, 619);
+  assert.equal(S.session(db, "TOKEN-SAM-00000000000000002", NOW).quote, null);
+});
+
+test("funnel events are stored for a known client, only for listed types, and refused otherwise", () => {
+  const db = makeDb();
+  publish(db);
+  assert.deepEqual(S.event(db, { k: "TOKEN-ALEX-0000000000000001", type: "upgrade-shown", data: { price: 1832 } }, NOW), { ok: true });
+  assert.equal(S.event(db, { k: "TOKEN-ALEX-0000000000000001", type: "made-up" }, NOW).error, "unknown-event");
+  assert.equal(S.event(db, { k: "nobody", type: "view" }, NOW).error, "not-found");
+  assert.equal(db.tables.events.length, 1);
+  assert.equal(db.tables.events[0].type, "upgrade-shown");
+});
+
