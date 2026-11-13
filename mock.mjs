@@ -130,7 +130,9 @@ export function startMock(port = 4180, { db = seededDb() } = {}) {
     const file = normalize(join(here, rel));
     if (!file.startsWith(here) || file.includes("node_modules") || file.includes(".git")) { res.writeHead(403); return res.end(); }
     try {
-      const data = await readFile(file);
+      let data = await readFile(file);
+      // The page's config points at the live store; the local mock always serves the page against its own /api.
+      if (rel === "config.js") data = Buffer.from(data.toString("utf8").replace(/window\.WANDER_API_URL = "[^"]*";/, 'window.WANDER_API_URL = "/api";'));
       res.writeHead(200, { "Content-Type": TYPES[extname(file)] || "application/octet-stream" });
       res.end(data);
     } catch (e) {
