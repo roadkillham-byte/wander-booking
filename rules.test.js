@@ -135,3 +135,28 @@ test("decideChange asks Sam when the NEW time is under 24 hours away, even if th
   const fine = R.decideChange(booking, { date: "2026-12-02", startTime: "07:00", hours: 3, travelKm: 0 }, [], "2026-12-01T06:00:00", "2026-12-01T07:00:00");
   assert.equal(fine.decision, "applied", "exactly 24 hours stands");
 });
+
+test("trading hours are every day, 07:00 to 16:00, and the whole booking must fit inside them", () => {
+  assert.equal(R.withinTradingHours("07:00", 3), true);
+  assert.equal(R.withinTradingHours("13:00", 3), true, "ends exactly at 16:00");
+  assert.equal(R.withinTradingHours("13:30", 3), false);
+  assert.equal(R.withinTradingHours("06:30", 2), false);
+  assert.equal(R.withinTradingHours("07:00", 10), false);
+  assert.equal(R.withinTradingHours("", 3), false);
+});
+
+test("a hold outside the trading hours is asked of Sam, with a plain reason", () => {
+  const req = { date: "2026-12-12", startTime: "14:00", hours: 3, travelKm: 0 };
+  const out = R.decideHold(req, [], "2026-12-01T06:00:00", "2026-12-01T07:00:00");
+  assert.equal(out.decision, "requested");
+  assert.deepEqual(out.reasons, ["outside our usual hours (7 am to 4 pm)"]);
+  const inside = R.decideHold({ ...req, startTime: "09:00" }, [], "2026-12-01T06:00:00", "2026-12-01T07:00:00");
+  assert.equal(inside.decision, "held");
+});
+
+test("a change to a time outside the trading hours is asked of Sam", () => {
+  const out = R.decideChange({ date: "2026-12-08", startTime: "09:00" }, { date: "2026-12-09", startTime: "14:30", hours: 3, travelKm: 0 }, [],
+    "2026-12-01T06:00:00", "2026-12-01T07:00:00");
+  assert.equal(out.decision, "requested");
+  assert.ok(out.reasons.includes("the new time is outside our usual hours (7 am to 4 pm)"));
+});

@@ -10,7 +10,7 @@
   "bookings": [
     {
       "id": "bk-101",
-      "status": "held",
+      "status": "confirmed",
       "date": "2026-12-05",
       "startTime": "09:00",
       "endTime": "12:00",
@@ -18,7 +18,14 @@
       "hours": 3,
       "address": "1 Main Street, Forster",
       "total": 619,
-      "outOfHoursFee": 0
+      "outOfHoursFee": 0,
+      "discount": 62,
+      "amountDue": 557,
+      "bonusHours": 2,
+      "creditsApplied": [
+        "10% off your first morning",
+        "2 free hours (Team Captain)"
+      ]
     }
   ],
   "pending": [],
@@ -35,5 +42,11 @@
       "firstName": "Jo",
       "status": "booked"
     }
-  ]
+  ],
+  "reward": {
+    "referrerPercent": 10,
+    "friendPercent": 10,
+    "captainEvery": 3,
+    "captainFreeHours": 2
+  }
 }
