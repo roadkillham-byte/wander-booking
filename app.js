@@ -93,13 +93,16 @@
     var notice = state.notice ? '<p class="notice" role="status">' + esc(state.notice) + "</p>" : "";
     var stale = state.session && state.session.stale
       ? '<p class="note">Our availability is a little old. We will confirm your time by text.</p>' : "";
-    return '<header class="band rise"><img src="assets/wander-logo.png" alt="Wander Coffee Van">' +
-      "<h1>Come Find Us</h1>" + (opts.greet ? '<p class="greet">' + esc(opts.greet) + "</p>" : "") +
-      '<ol class="trail" aria-label="Your progress">' + trail + "</ol></header>" +
+    // The funnel screens have no menu: nothing takes the client away from the next step. Account screens do.
+    var navHtml = !opts.nav ? "" :
       '<nav class="top"><a href="#k=' + encodeURIComponent(state.k) + '&v=bookings">My bookings</a>' +
       '<a href="#k=' + encodeURIComponent(state.k) + '&v=pack">My 4-Pack</a>' +
       '<a href="#k=' + encodeURIComponent(state.k) + '&v=compare">Compare options</a>' +
-      '<a href="#k=' + encodeURIComponent(state.k) + '&v=refer">Refer a team</a></nav>' +
+      '<a href="#k=' + encodeURIComponent(state.k) + '&v=refer">Refer a team</a></nav>';
+    return '<header class="band rise"><img src="assets/wander-logo.png" alt="Wander Coffee Van">' +
+      "<h1>Come Find Us</h1>" + (opts.greet ? '<p class="greet">' + esc(opts.greet) + "</p>" : "") +
+      '<ol class="trail" aria-label="Your progress">' + trail + "</ol></header>" +
+      navHtml +
       notice + stale + inner +
       '<p class="talk"><a href="tel:' + esc(window.WANDER_PHONE_LINK) + '">Rather talk? <span>We will ring you today</span> <b class="num">' + esc(window.WANDER_PHONE_DISPLAY) + "</b></a></p>";
   }
@@ -117,7 +120,7 @@
     if (booking) return renderBookingCard(booking, true);
     var q = state.session && state.session.quote;
     var last = lastCompleted();
-    if (!q && last) return renderSameAgain(last);
+    if (!q && last) return usable(last) ? renderSameAgain(last) : renderPick(seedFrom(last), "new");
     if (!q) return renderPick({ date: "", startTime: "09:00", people: 20, hours: 3, address: "" }, "new");
     var total = Number(q.total) + Number(q.fee || 0);
     var inner = '<section class="rise d1"><h2 class="rule">Your morning</h2>' +
@@ -134,6 +137,21 @@
       '<p class="note"><a href="#k=' + encodeURIComponent(state.k) + '&v=pick">Change the date, time or people</a></p></section>';
     track("view", { v: "held" });
     return shell(inner + promisesHtml(), { step: 1, greet: "Hi " + firstName() + ". Here is your morning." });
+  }
+
+  // A booking typed into Coffee Van by hand may have no headcount or start time; Same again needs all the details.
+  function usable(b) {
+    return Number.isInteger(Number(b.people)) && Number(b.people) >= 1 && /^\d{2}:\d{2}$/.test(b.startTime || "") && [2, 3, 4, 5, 6].indexOf(Number(b.hours)) >= 0;
+  }
+  function seedFrom(b) {
+    var okTime = /^\d{2}:\d{2}$/.test(b.startTime || "");
+    return { date: "", startTime: okTime ? b.startTime : "09:00", people: Number(b.people) >= 1 ? Number(b.people) : 20,
+      hours: [2, 3, 4, 5, 6].indexOf(Number(b.hours)) >= 0 ? Number(b.hours) : 3, address: b.address || "" };
+  }
+  // The booking a change is for: the one named in the link, else the client's current one.
+  function bookingForRoute() {
+    var list = (state.session && state.session.bookings) || [];
+    return list.filter(function (b) { return b.id === state.route.b; })[0] || activeBooking();
   }
 
   function lastCompleted() {
@@ -261,13 +279,13 @@
     }).concat(pend.map(function (p) { return '<li>Requested: ' + esc(p.kind) + ' (we reply within ' + esc(p.replyWithinHours) + " hours)</li>"; }));
     var inner = '<section class="rise d1"><h2 class="rule">My bookings</h2>' +
       (rows.length ? '<ul class="list">' + rows.join("") + "</ul>" : '<p>No bookings yet. <a href="#k=' + encodeURIComponent(state.k) + '&v=pick">Pick a morning</a>.</p>') + "</section>";
-    return shell(inner, { greet: "Your mornings, " + firstName() + "." });
+    return shell(inner, { nav: true, greet: "Your mornings, " + firstName() + "." });
   }
 
   function renderBooking() {
     var list = (state.session && state.session.bookings) || [];
     var b = list.filter(function (x) { return x.id === state.route.b; })[0];
-    if (!b) return shell('<section class="rise d1"><p>We could not find that booking. <a href="#k=' + encodeURIComponent(state.k) + '&v=bookings">Back to my bookings</a>.</p></section>');
+    if (!b) return shell('<section class="rise d1"><p>We could not find that booking. <a href="#k=' + encodeURIComponent(state.k) + '&v=bookings">Back to my bookings</a>.</p></section>', { nav: true });
     var cancellable = b.status === "held" || b.status === "confirmed";
     var inner = renderBookingCard(b, false) +
       '<section class="rise d2"><p class="note">Change it: <a href="#k=' + encodeURIComponent(state.k) + "&v=change&b=" + encodeURIComponent(b.id) + '">pick a new date or time</a></p>' +
@@ -275,7 +293,7 @@
         '<div id="cancel-confirm" hidden><p>Cancel this morning? You are promised your credit. We confirm it within 24 hours.</p>' +
         '<button type="button" class="go" id="cancel-yes">Yes, cancel it</button> <button type="button" class="link" id="cancel-no">Keep it</button></div>' : "") +
       "</section>";
-    return shell(inner, { greet: "Your morning, " + firstName() + "." });
+    return shell(inner, { nav: true, greet: "Your morning, " + firstName() + "." });
   }
 
   function renderPack() {
@@ -284,7 +302,7 @@
       (pack ? "<p>" + esc(pack.left) + " mornings left of " + esc(pack.mornings) + ". Bonus time: " + esc(pack.bonusHours) + " hours. Valid until " + esc(dayName(pack.expiresAt)) + ".</p>"
         : "<p>You do not have a 4-Pack yet. Four mornings, paid up front, with bonus coffee time on top.</p>" +
           '<p><a href="#k=' + encodeURIComponent(state.k) + '&v=pick">Pick a morning first</a>, then we offer the 4-Pack.</p>') + "</section>";
-    return shell(inner, { greet: "Your 4-Pack, " + firstName() + "." });
+    return shell(inner, { nav: true, greet: "Your 4-Pack, " + firstName() + "." });
   }
 
   // Refer a team: the code, one tap to share the link, and who has booked, by first name only.
@@ -301,7 +319,7 @@
       (code ? '<p class="refcode">Your code: <code>' + esc(code) + "</code></p>" : "") +
       '<button type="button" class="go" id="share">Copy my referral link</button>' + rows + "</section>";
     track("view", { v: "refer" });
-    return shell(inner, { greet: "Share the morning, " + firstName() + "." });
+    return shell(inner, { nav: true, greet: "Share the morning, " + firstName() + "." });
   }
 
   function renderCompare() {
@@ -318,7 +336,7 @@
         '<a class="link" href="#k=' + encodeURIComponent(state.k) + "&v=call&when=" + encodeURIComponent(it[0]) + '">Request this</a></li>';
     }).join("");
     track("view", { v: "compare" });
-    return shell('<section class="rise d1"><h2 class="rule">Compare options</h2><ul class="list cards">' + rows + "</ul></section>", { greet: "Options for " + firstName() + "." });
+    return shell('<section class="rise d1"><h2 class="rule">Compare options</h2><ul class="list cards">' + rows + "</ul></section>", { nav: true, greet: "Options for " + firstName() + "." });
   }
 
   function renderCall() {
@@ -327,7 +345,7 @@
       '<form id="call" class="stack"><label>When suits you<input name="when" maxlength="80" value="' + esc(when) + '" placeholder="A weekday after 3 pm"></label>' +
       '<label>Anything we should know?<textarea name="note" maxlength="300" rows="3"></textarea></label>' +
       '<button type="submit" class="go">Request the call</button></form></section>';
-    return shell(inner, { greet: "Let's talk, " + firstName() + "." });
+    return shell(inner, { nav: true, greet: "Let's talk, " + firstName() + "." });
   }
 
   function showPage(html) {
@@ -371,7 +389,7 @@
         state.busy = true;
         var f = pick;
         var people = Number(f.people.value), hours = Number(f.hours.value), start = f.startTime.value;
-        var b = activeBooking();
+        var b = bookingForRoute();
         state.lastHold = { date: f.date.value, startTime: start, people: people, hours: hours, address: f.address.value };
         var body = { k: state.k, requestId: uid(), date: f.date.value, startTime: start, people: people, hours: hours, address: f.address.value,
           shownTotal: (quoteFor(people, hours) || 0) + feeFor(start, hours), shownFee: feeFor(start, hours) };
@@ -490,10 +508,11 @@
     var v = state.route.v;
     var html;
     if (v === "pick" || v === "change") {
-      var seedFrom = state.session.quote || lastCompleted();
-      var seed = seedFrom ? { date: state.session.quote ? seedFrom.date : "", startTime: seedFrom.startTime || "09:00", people: seedFrom.people, hours: seedFrom.hours, address: seedFrom.address || "" }
+      var from = state.session.quote || lastCompleted();
+      var seed = from ? { date: state.session.quote ? from.date : "", startTime: from.startTime || "09:00", people: from.people, hours: from.hours, address: from.address || "" }
         : { date: "", startTime: "09:00", people: 20, hours: 3, address: "" };
-      html = renderPick(v === "change" ? (activeBooking() || {}) : seed, v === "change" ? "change" : "new");
+      if (!state.session.quote && from) seed = seedFrom(from);
+      html = renderPick(v === "change" ? (bookingForRoute() || {}) : seed, v === "change" ? "change" : "new");
     }
     else if (v === "bookings") html = renderBookings();
     else if (v === "booking") html = renderBooking();

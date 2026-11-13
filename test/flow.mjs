@@ -1,12 +1,12 @@
 // End-to-end check of the client journey in a headless browser at phone width: link, Held, Book, the 4-Pack offer,
 // a plain decline, and the confirmation. Run: node test/flow.mjs   (uses the Playwright install in render-engine).
 import { createRequire } from "node:module";
-import { startMock, MOCK_CLIENT_TOKEN, MOCK_RETURNING_TOKEN } from "../mock.mjs";
+import { startMock, MOCK_CLIENT_TOKEN, MOCK_RETURNING_TOKEN, MOCK_HANDMADE_TOKEN, MOCK_TWO_TOKEN } from "../mock.mjs";
 const require = createRequire(import.meta.url);
 const { chromium } = require(process.env.HOME + "/render-engine/node_modules/playwright-core");
 
 const shots = process.env.SHOTS || "/tmp";
-const { server, url } = await startMock(4181);
+const { server, url, db } = await startMock(4181);
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage({ viewport: { width: 360, height: 780 }, deviceScaleFactor: 2 });
 const errors = [];
@@ -71,7 +71,7 @@ await check("the account screens render from the same session", async () => {
 
 await check("a returning client sees Same again with a future date, and one tap holds it; a first-time client does not", async () => {
   await page.goto(url + "/#k=" + MOCK_CLIENT_TOKEN + "&v=home");
-  await page.waitForSelector("#book");
+  await page.waitForSelector("#app h2");
   if ((await page.innerText("#app")).includes("Same again")) throw new Error("a first-time client was offered Same again");
   await page.goto(url + "/#k=" + MOCK_RETURNING_TOKEN);
   await page.waitForSelector("#again");
@@ -80,6 +80,41 @@ await check("a returning client sees Same again with a future date, and one tap 
   await noOverflowAndNoJunk("Same again");
   await page.click("#again");
   await page.waitForSelector("#pack-yes");
+});
+
+await check("after tapping Same again the client sees their held morning, never Same again a second time", async () => {
+  await page.goto(url + "/#k=" + MOCK_RETURNING_TOKEN + "&v=home");
+  await page.waitForSelector("#app h2");
+  const txt = await page.innerText("#app");
+  if (!txt.includes("Your morning is held")) throw new Error("no held morning: " + txt.slice(0, 200));
+  if (await page.$("#again")) throw new Error("Same again is still offered");
+});
+
+await check("a hand-entered last booking (no headcount, no start) gets the picker, not a broken Same again", async () => {
+  await page.goto(url + "/#k=" + MOCK_HANDMADE_TOKEN);
+  await page.waitForSelector("#pick");
+  if (await page.$("#again")) throw new Error("Same again offered for a booking with no headcount");
+});
+
+await check("the funnel screens have no menu and the account screens do", async () => {
+  await page.goto(url + "/#k=" + MOCK_HANDMADE_TOKEN);
+  await page.waitForSelector("#pick");
+  if (await page.$(".top")) throw new Error("menu on the Pick screen");
+  await page.goto(url + "/#k=" + MOCK_TWO_TOKEN + "&v=bookings");
+  await page.waitForSelector(".top");
+});
+
+await check("changing a booking changes the one chosen, not the first", async () => {
+  await page.goto(url + "/#k=" + MOCK_TWO_TOKEN + "&v=change&b=bk-l2");
+  await page.waitForSelector("#pick");
+  const date = await page.inputValue('#pick input[name="date"]');
+  if (date !== "2026-12-19") throw new Error("seeded from the wrong booking: " + date);
+  await page.fill('#pick input[name="date"]', "2026-12-20");
+  await page.click('#pick button[type="submit"]');
+  await page.waitForSelector("text=What happens next");
+  const queued = db.tables.queue.filter((q) => q.kind === "change").pop();
+  const sent = JSON.parse(queued.payload).request;
+  if (sent.bookingId !== "bk-l2") throw new Error("changed " + sent.bookingId);
 });
 
 await check("Refer a team shows the code, a share button and each referral by first name only", async () => {

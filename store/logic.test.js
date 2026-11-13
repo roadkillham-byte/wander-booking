@@ -262,3 +262,43 @@ test("a client with no referrals gets an empty list", () => {
   assert.deepEqual(S.session(db, "TOKEN-ALEX-0000000000000001", NOW).referrals, []);
 });
 
+test("a held date shows in the session at once as the client's own held booking, with the price they were shown", () => {
+  const db = makeDb();
+  publish(db);
+  const held = S.request(db, Object.assign(hold("TOKEN-ALEX-0000000000000001", "req-v1", "2026-12-19", "09:00"), { shownTotal: 654, shownFee: 35 }), NOW);
+  assert.equal(held.outcome, "held");
+  const mine = S.session(db, "TOKEN-ALEX-0000000000000001", NOW).bookings.filter((b) => b.id === "hold-req-v1");
+  assert.equal(mine.length, 1);
+  assert.deepEqual({ status: mine[0].status, date: mine[0].date, startTime: mine[0].startTime, total: mine[0].total, fee: mine[0].outOfHoursFee },
+    { status: "held", date: "2026-12-19", startTime: "09:00", total: 619, fee: 35 });
+});
+
+test("another client's hold never appears in this client's session", () => {
+  const db = makeDb();
+  publish(db);
+  S.request(db, hold("TOKEN-SAM-00000000000000002", "req-v2", "2026-12-19", "09:00"), NOW);
+  assert.equal(S.session(db, "TOKEN-ALEX-0000000000000001", NOW).bookings.some((b) => b.id === "hold-req-v2"), false);
+});
+
+test("a hold that is only asked of Sam is shown as pending, not as a booking", () => {
+  const db = makeDb();
+  publish(db);
+  const asked = S.request(db, hold("TOKEN-ALEX-0000000000000001", "req-v3", "2026-12-05", "10:00"), NOW); // overlaps the published booking
+  assert.equal(asked.outcome, "requested");
+  const view = S.session(db, "TOKEN-ALEX-0000000000000001", NOW);
+  assert.equal(view.bookings.some((b) => b.id === "hold-req-v3"), false);
+  assert.equal(view.pending.some((p) => p.id === "req-v3"), true);
+});
+
+test("an applied change shows its new time on the booking until Coffee Van publishes it", () => {
+  const db = makeDb();
+  publish(db);
+  const change = { k: "TOKEN-ALEX-0000000000000001", kind: "change", requestId: "req-v4", bookingId: "bk-101",
+    date: "2026-12-05", startTime: "10:00", people: 20, hours: 3, address: "1 Main Street, Forster" };
+  assert.equal(S.request(db, change, NOW).outcome, "applied");
+  const booking = S.session(db, "TOKEN-ALEX-0000000000000001", NOW).bookings.filter((b) => b.id === "bk-101");
+  assert.equal(booking.length, 1);
+  assert.equal(booking[0].startTime, "10:00");
+  assert.equal(booking[0].endTime, "13:00");
+});
+

@@ -15,6 +15,8 @@ const S = require("./store/logic.js");
 export const MOCK_APP_TOKEN = "dev-app-token-0123456789abcdef";
 export const MOCK_CLIENT_TOKEN = "CLIENT-TOKEN-FIXTURE-0000000000";
 export const MOCK_RETURNING_TOKEN = "CLIENT-TOKEN-RETURNING-0000000";
+export const MOCK_HANDMADE_TOKEN = "CLIENT-TOKEN-HANDMADE-000000000";
+export const MOCK_TWO_TOKEN = "CLIENT-TOKEN-TWOBOOKINGS-000000";
 
 const TYPES = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8",
   ".png": "image/png", ".woff2": "font/woff2", ".json": "application/json" };
@@ -67,10 +69,19 @@ export function seededDb(now = new Date().toISOString()) {
         referrals: [{ firstName: "Jo", status: "booked" }, { firstName: "Pat", status: "completed" }],
         quote: { date: "2026-12-12", startTime: "09:00", people: 20, hours: 3, address: "3 Lake Road, Tea Gardens", total: 619, fee: 0 } },
       { token: MOCK_RETURNING_TOKEN, firstName: "Sam", referralCode: "H4BC-7WDR" },
+      { token: MOCK_HANDMADE_TOKEN, firstName: "Pat", referralCode: "" },
+      { token: MOCK_TWO_TOKEN, firstName: "Lee", referralCode: "" },
     ],
     bookings: [
       { id: "bk-old", clientToken: MOCK_RETURNING_TOKEN, status: "completed", date: "2026-10-10", startTime: "09:00", endTime: "12:00",
         people: 20, hours: 3, address: "1 Main Street, Forster", total: 619, outOfHoursFee: 0, requestId: "" },
+      // A booking Sam typed into Coffee Van by hand: no headcount and no start time.
+      { id: "bk-hand", clientToken: MOCK_HANDMADE_TOKEN, status: "completed", date: "2026-10-03", startTime: "", endTime: "",
+        people: 0, hours: 3, address: "", total: 0, outOfHoursFee: 0, requestId: "" },
+      { id: "bk-l1", clientToken: MOCK_TWO_TOKEN, status: "confirmed", date: "2026-12-05", startTime: "09:00", endTime: "12:00",
+        people: 20, hours: 3, address: "1 Main Street, Forster", total: 619, outOfHoursFee: 0, requestId: "" },
+      { id: "bk-l2", clientToken: MOCK_TWO_TOKEN, status: "confirmed", date: "2026-12-19", startTime: "10:00", endTime: "13:00",
+        people: 30, hours: 3, address: "9 Beach Road, Hawks Nest", total: 900, outOfHoursFee: 0, requestId: "" },
     ],
     busy: [],
     credits: [{ clientToken: MOCK_CLIENT_TOKEN, kind: "referral", label: "10% off your next booking", expiresAt: "2027-11-13" }],

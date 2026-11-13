@@ -20,7 +20,7 @@ var StoreLogic = (function () {
     events: ["time", "type", "data"],
     bookings: ["id", "clientToken", "status", "date", "startTime", "endTime", "people", "hours", "address", "total", "outOfHoursFee", "requestId"],
     busy: ["date", "startTime", "endTime"],
-    holds: ["requestId", "id", "clientToken", "date", "startTime", "endTime", "people", "hours", "address", "createdAt"],
+    holds: ["requestId", "id", "clientToken", "date", "startTime", "endTime", "people", "hours", "address", "total", "outOfHoursFee", "createdAt"],
     queue: ["id", "kind", "receivedAt", "clientToken", "payload", "acked"],
     credits: ["clientToken", "kind", "label", "expiresAt"],
     meta: ["key", "value"],
@@ -107,6 +107,12 @@ var StoreLogic = (function () {
     db.read("busy").forEach(function (b) { if (b.date === date) out.push({ date: b.date, startTime: b.startTime, endTime: b.endTime }); });
     db.read("holds").forEach(function (h) { if (h.date === date) out.push({ date: h.date, startTime: h.startTime, endTime: h.endTime }); });
     return out;
+  }
+
+  // The price the client was shown, without the out-of-hours fee. Coffee Van re-prices on import; this is what the page
+  // shows until it publishes.
+  function shownBase(fields) {
+    return fields.shownTotal === null || fields.shownTotal === undefined ? 0 : Math.max(0, Number(fields.shownTotal) - Number(fields.shownFee || 0));
   }
 
   function copyFor(outcome, replyWithinHours, startTime) {
@@ -217,6 +223,14 @@ var StoreLogic = (function () {
         address: b.address, total: b.total, outOfHoursFee: b.outOfHoursFee,
       };
     });
+    // A date this client has just held, or a change just applied, shows at once; Coffee Van's next publish replaces it.
+    db.read("holds").filter(function (h) { return h.clientToken === token; }).forEach(function (h) {
+      var at = -1;
+      for (var i = 0; i < bookings.length; i++) if (bookings[i].id === h.id) at = i;
+      var moved = { date: h.date, startTime: h.startTime, endTime: h.endTime, people: Number(h.people), hours: Number(h.hours), address: h.address };
+      if (at >= 0) bookings[at] = Object.assign({}, bookings[at], moved);
+      else bookings.push(Object.assign({ id: h.id, status: "held", total: Number(h.total || 0), outOfHoursFee: Number(h.outOfHoursFee || 0) }, moved));
+    });
     var pendingItems = db.read("queue").filter(function (q) { return q.clientToken === token && String(q.acked) !== "yes"; }).map(function (q) {
       return { id: q.id, kind: q.kind, replyWithinHours: 24 };
     });
@@ -280,7 +294,7 @@ var StoreLogic = (function () {
           db.append("holds", {
             requestId: requestId, id: holdId, clientToken: client.token, date: fields.date, startTime: fields.startTime,
             endTime: endTimeFor(fields.startTime, fields.hours), people: fields.people, hours: fields.hours,
-            address: fields.address, createdAt: now,
+            address: fields.address, total: shownBase(fields), outOfHoursFee: Number(fields.shownFee || 0), createdAt: now,
           });
           response.bookingId = holdId;
         }
@@ -301,7 +315,7 @@ var StoreLogic = (function () {
           db.append("holds", {
             requestId: requestId, id: booking.id, clientToken: client.token, date: fields.date, startTime: fields.startTime,
             endTime: endTimeFor(fields.startTime, fields.hours), people: fields.people, hours: fields.hours,
-            address: fields.address, createdAt: now,
+            address: fields.address, total: shownBase(fields), outOfHoursFee: Number(fields.shownFee || 0), createdAt: now,
           });
         }
         fields.decision = change.decision;
