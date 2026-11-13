@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en-AU"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex"><title>Thanks | Wander</title><link rel="stylesheet" href="site.css"></head>
+<body>
+<div class="bar"><img src="assets/wander-logo.png" alt="Wander"></div>
+<main class="page" id="main"></main>
+<div class="foot">Come Find Us · <a href="privacy.html">Privacy</a></div>
+<script src="config.js"></script><script src="links.js"></script><script src="track.js"></script><script src="boot.js"></script>
+<script>
+(function () {
+  var main = document.getElementById("main"), p = new URLSearchParams(location.search), r = p.get("r") || "";
+  var order = ["industry", "frequency", "heard", "role"], Q = WanderLinks.TAP_QUESTIONS, t = WanderBoot.tracker();
+  var asked = (function () { try { return JSON.parse(sessionStorage.getItem("wander.asked") || "[]"); } catch (e) { return []; } })();
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+  var hit = WanderLinks.resolveTap(p.get("q"), p.get("a"));
+  if (hit) {
+    t.track("tap", { q: hit.q, a: hit.a, r: r }); t.flush();
+    if (asked.indexOf(hit.q) < 0) asked.push(hit.q);
+    try { sessionStorage.setItem("wander.asked", JSON.stringify(asked)); } catch (e) { /* ignore */ }
+  }
+  var next = order.filter(function (q) { return asked.indexOf(q) < 0; })[0] || (hit ? null : p.get("q") && Q[p.get("q")] ? p.get("q") : order[0]);
+  var html = hit ? "<h1>Thanks, got it</h1><p>That helps us look after your team better.</p>" : "<h1>Quick one</h1>";
+  if (next) {
+    html += "<h2>" + esc(Q[next].prompt) + "</h2><div class='chips'>";
+    Object.keys(Q[next].answers).forEach(function (a) {
+      html += "<a class='chip' href='tap.html?q=" + encodeURIComponent(next) + "&a=" + encodeURIComponent(a) + "&r=" + encodeURIComponent(r) + "'>" + esc(Q[next].answers[a]) + "</a>";
+    });
+    html += "</div><p class='note'>One tap, and you can stop any time.</p>";
+  } else if (hit) html += "<p>That is everything. Your quote is in your inbox.</p>";
+  html += "<p><a class='btn' href='" + esc(window.WANDER_LINKS.page) + "'>Back to Wander</a></p>";
+  main.innerHTML = html;
+})();
+</script></body></html>

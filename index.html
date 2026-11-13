@@ -123,14 +123,14 @@ footer a{color:var(--forest)}
           <thead><tr><th></th><th>Four single mornings</th><th>Prepaid 4-Pack</th></tr></thead>
           <tbody>
             <tr><th>You pay</th><td id="cmp-single">$1,832</td><td id="cmp-pack"><strong>$1,832</strong></td></tr>
-            <tr><th>Length of mornings</th><td>2 hours each</td><td><strong>2, 2, 2 and 3 hours</strong></td></tr>
-            <tr><th>Bonus hour</th><td>none</td><td><strong id="cmp-bonus">worth $161, free</strong></td></tr>
+            <tr><th>Length of mornings</th><td id="cmp-len-single">3 hours each</td><td><strong id="cmp-len-pack">3 hours each</strong></td></tr>
+            <tr id="row-bonus"><th>Bonus time</th><td>none</td><td><strong id="cmp-bonus">2 hours, worth $322, free</strong></td></tr>
             <tr><th>Price locked, 12 months</th><td>no</td><td><strong>yes</strong></td></tr>
             <tr><th>A morning we can't deliver</th><td>refund or new date</td><td><strong>refund or new date</strong></td></tr>
           </tbody>
         </table>
-        <p class="packline" id="packline">The same price as four single mornings, with an extra hour of coffee thrown in.</p>
-        <p class="fine">Paid up front. Pick the dates now or any time in 12 months, with 24 hours' notice. Cancel a morning with 24 hours' notice and it moves to another date.</p>
+        <p class="packline" id="packline">The same price as four single mornings, with bonus time thrown in.</p>
+        <p class="fine">Paid up front. Spend your bonus time on any of your four mornings, 30 minutes at a time. Pick the dates now or any time in 12 months, with 24 hours' notice. Cancel a morning with 24 hours' notice and it moves to another date.</p>
       </div>
       <p class="guar"><strong>Our promise:</strong> more than 15 minutes late and your first hour is free · no-show, full refund · a coffee that isn't right is remade or refunded.</p>
       <a class="go" id="go" href="#" rel="noopener">Email me my price and call me today</a>
@@ -163,39 +163,81 @@ footer a{color:var(--forest)}
 </main>
 
 <footer class="wrap">
-  Wander Coffee Van · ABN 62 731 017 112 · 0492 801 058 · <a href="mailto:wandermcco@gmail.com">wandermcco@gmail.com</a> · <a href="https://www.instagram.com/_wander_coffee_/">@_wander_coffee_</a>
+  <a href="privacy.html">Privacy</a> · Wander Coffee Van · ABN 62 731 017 112 · 0492 801 058 · <a href="mailto:wandermcco@gmail.com">wandermcco@gmail.com</a> · <a href="https://www.instagram.com/_wander_coffee_/">@_wander_coffee_</a>
 </footer>
 
 <script src="config.js"></script>
+<script src="quote.js"></script>
+<script src="track.js"></script>
+<script src="boot.js"></script>
 <script>
-// The price below is Wander's Catering Rate Card. Booking requests go to Wander's Google Form (set in config.js);
-// this page collects nothing and sends no email.
+// The price below is Wander's Catering Rate Card (quote.js). Booking requests go to Wander's Google Form (set in
+// config.js). This page sends no email. If tracking is configured it records what visitors do here, never what they
+// type (see privacy.html).
 const FORM_URL = window.WANDER_FORM_URL || "";
+const { quote, packPrice, packBonus } = window.WanderQuote;
 const peopleEl = document.getElementById("people"), msg = document.getElementById("msg"), go = document.getElementById("go");
 const hours = () => Number(document.querySelector('input[name="hours"]:checked').value);
-// people x ($3.40 + $4.62 x hours) + (hours + 1) x $68.41, inc GST, to the dollar.
-const quote = (people, h) => Math.round(people * (3.4 + 4.62 * h) + (h + 1) * 68.41);
 const money = (n) => "$" + n.toLocaleString("en-AU");
+const hoursText = (h) => (h === 1 ? "1 hour" : h + " hours");
 function validPeople() { const n = Number(peopleEl.value); return Number.isInteger(n) && n >= 1 && n <= 500 ? n : null; }
 function showQuote() {
   const n = validPeople(), h = hours();
   document.getElementById("amt").textContent = n ? money(quote(n, h)) : "$ ...";
   document.getElementById("sub").textContent = n ? `${n} ${n === 1 ? "person" : "people"}, ${h} hours, including GST` : "Enter 1 to 500 people";
   if (!n) return;
-  // The 4-Pack is four 2-hour mornings at list price, and the fourth runs 3 hours: same price, one hour on us.
-  const pack = 4 * quote(n, 2), bonus = quote(n, 3) - quote(n, 2);
+  // The 4-Pack is four mornings at the length chosen, at list price, and longer mornings earn more bonus time.
+  const pack = packPrice(n, h), bonus = packBonus(n, h);
   document.getElementById("cmp-single").textContent = money(pack);
   document.getElementById("cmp-pack").innerHTML = "<strong>" + money(pack) + "</strong>";
-  document.getElementById("cmp-bonus").textContent = "worth " + money(bonus) + ", free";
-  document.getElementById("packline").textContent = `For ${n} ${n === 1 ? "person" : "people"}: ${money(pack)} either way, and the 4-Pack adds a ${money(bonus)} hour of coffee. Nothing to lose.`;
+  document.getElementById("cmp-len-single").textContent = h + " hours each";
+  document.getElementById("cmp-len-pack").textContent = h + " hours each";
+  document.getElementById("row-bonus").hidden = bonus.blocks === 0;
+  document.getElementById("cmp-bonus").textContent = hoursText(bonus.hours) + ", worth " + money(bonus.value) + ", free";
+  document.getElementById("packline").textContent = bonus.blocks === 0
+    ? `For ${n} ${n === 1 ? "person" : "people"}: ${money(pack)} for four mornings of ${h} hours, paid once.`
+    : `For ${n} ${n === 1 ? "person" : "people"} at ${h} hours a morning: ${money(pack)} either way, and the 4-Pack adds ${hoursText(bonus.hours)} of coffee time worth ${money(bonus.value)}. Nothing to lose.`;
 }
 document.addEventListener("input", showQuote); showQuote();
 go.addEventListener("click", (event) => {
+  if (tracker) tracker.track("cta", { form: /^https:\/\/(docs\.google\.com\/forms|forms\.gle)\//.test(FORM_URL) });
+  if (tracker) tracker.flush();
   if (/^https:\/\/(docs\.google\.com\/forms|forms\.gle)\//.test(FORM_URL)) { go.href = FORM_URL; return; }
   event.preventDefault();
   msg.textContent = "Online requests open shortly. To book now, call 0492 801 058 with your price above.";
   msg.hidden = false;
 });
+
+// Passive tracking: inert unless config.js sets the events URL and site key.
+const tracker = window.WanderBoot.tracker();
+if (tracker.enabled) {
+  tracker.track("view", tracker.viewData({
+    search: location.search, referrer: document.referrer, path: location.pathname, lang: navigator.language,
+    tzo: -new Date().getTimezoneOffset(), hour: new Date().getHours(), width: window.innerWidth,
+    coarse: window.matchMedia && window.matchMedia("(pointer: coarse)").matches,
+  }));
+  let calcTimer = null;
+  document.addEventListener("input", () => {
+    clearTimeout(calcTimer);
+    calcTimer = setTimeout(() => { const n = validPeople(); if (n) tracker.track("calc", { p: n, h: hours() }); }, 800);
+  });
+  const seen = (el, ratio, cb) => { if (!("IntersectionObserver" in window)) return; new IntersectionObserver((es, o) => { if (es.some((e) => e.isIntersecting)) { cb(); o.disconnect(); } }, { threshold: ratio }).observe(el); };
+  seen(document.getElementById("pack"), 0.5, () => { const n = validPeople(); if (n) tracker.track("pack", { p: n, h: hours() }); });
+  let priceTimer = null, lastKey = "";
+  setInterval(() => {
+    const n = validPeople(); if (!n) return;
+    const box = document.getElementById("amt").getBoundingClientRect(), vis = box.top >= 0 && box.bottom <= window.innerHeight && document.visibilityState === "visible";
+    const key = n + ":" + hours();
+    if (vis && key !== lastKey) { clearTimeout(priceTimer); priceTimer = setTimeout(() => { tracker.track("price", { p: n, h: hours(), ms: 3000 }); }, 3000); lastKey = key; }
+    if (!vis) { clearTimeout(priceTimer); lastKey = ""; }
+  }, 500);
+  let maxScroll = 0, activeMs = 0, tick = Date.now();
+  const depth = () => { const d = document.documentElement; return Math.min(100, Math.round(((window.scrollY + window.innerHeight) / Math.max(1, d.scrollHeight)) * 100)); };
+  window.addEventListener("scroll", () => { maxScroll = Math.max(maxScroll, depth()); tracker.scroll(maxScroll); }, { passive: true });
+  setInterval(() => { const now = Date.now(); if (document.visibilityState === "visible") activeMs += Math.min(now - tick, 2000); tick = now; }, 1000);
+  setInterval(() => tracker.flush(), 5000);
+  window.addEventListener("pagehide", () => { tracker.track("leave", { act: Math.round(activeMs / 1000), max: maxScroll }); tracker.flush(); });
+}
 </script>
 </body>
 </html>

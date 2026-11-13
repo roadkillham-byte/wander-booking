@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en-AU"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex"><title>One moment | Wander</title><link rel="stylesheet" href="site.css"></head>
+<body>
+<div class="bar"><img src="assets/wander-logo.png" alt="Wander"></div>
+<main class="page" id="main"><h1>One moment</h1><p>Taking you there now.</p></main>
+<div class="foot">Come Find Us · <a href="privacy.html">Privacy</a></div>
+<script src="config.js"></script><script src="links.js"></script><script src="track.js"></script><script src="boot.js"></script>
+<script>
+(function () {
+  var p = new URLSearchParams(location.search), key = p.get("to"), r = p.get("r") || "";
+  var dest = WanderLinks.resolveLink(key, window.WANDER_LINKS);
+  if (!dest) {
+    document.getElementById("main").innerHTML = '<h1>That link has moved</h1><p>No worries. <a href="' + window.WANDER_LINKS.page + '">Take me to the booking page</a>, or call 0492 801 058.</p>';
+    return;
+  }
+  var t = WanderBoot.tracker();
+  t.track("click", { to: key, r: r }); t.flush();
+  setTimeout(function () { location.replace(dest); }, 120);
+})();
+</script></body></html>
