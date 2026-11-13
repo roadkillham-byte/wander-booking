@@ -549,3 +549,32 @@ test("the funnel is for the app token only, takes 1 to 90 days, and an empty sto
   assert.equal(empty.totals.view, 0);
   assert.deepEqual(empty.views, {});
 });
+
+// ---- The Office Club card ----
+test("a member's Office Club card reaches their session, and nobody else's", () => {
+  const db = makeDb();
+  publish(db, { clients: [
+    { token: ALEX, firstName: "Alex", referralCode: "K7M2-QXTP", club: { month: "2026-12", used: 2, perMonth: 4 } },
+    { token: SAM, firstName: "Sam", referralCode: "H4BC-7WDR" },
+  ] });
+  assert.deepEqual(S.session(db, ALEX, NOW).club, { month: "2026-12", used: 2, perMonth: 4 });
+  assert.equal(S.session(db, SAM, NOW).club, null);
+});
+
+test("the card keeps only numbers and a month, and a malformed one is dropped", () => {
+  const db = makeDb();
+  publish(db, { clients: [
+    { token: ALEX, firstName: "Alex", referralCode: "A", club: { month: "2026-12", used: "3", perMonth: 4, extra: "x@y.z" } },
+    { token: SAM, firstName: "Sam", referralCode: "B", club: { month: "December", used: 1, perMonth: 4 } },
+  ] });
+  assert.deepEqual(S.session(db, ALEX, NOW).club, { month: "2026-12", used: 3, perMonth: 4 });
+  assert.equal(S.session(db, SAM, NOW).club, null);
+});
+
+test("a credit or an amount with cents survives the store exactly", () => {
+  const db = makeDb();
+  publish(db, { bookings: [{ id: "bk-101", clientToken: ALEX, status: "confirmed", date: "2026-12-05", startTime: "09:00", endTime: "12:00", people: 20, hours: 3,
+    address: "x", total: 619, outOfHoursFee: 0, requestId: "", discount: 61.9, amountDue: 557.1, bonusHours: 0, creditsApplied: ["10% off"] }] });
+  const b = S.session(db, ALEX, NOW).bookings[0];
+  assert.deepEqual([b.discount, b.amountDue], [61.9, 557.1]);
+});

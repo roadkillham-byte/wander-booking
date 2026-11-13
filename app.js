@@ -23,6 +23,11 @@
   var state = { k: null, session: null, prices: null, route: {}, notice: null, busy: false, lastHold: null, avail: null, failures: 0 };
 
   function money(n) { return "$" + Math.round(Number(n) || 0).toLocaleString("en-AU"); }
+  // What a client is charged to the cent: $557.10, or $619 when there are no cents. Never rounded, so the page matches the receipt.
+  function exact(n) {
+    var v = Math.round((Number(n) || 0) * 100) / 100;
+    return "$" + v.toLocaleString("en-AU", { minimumFractionDigits: v % 1 === 0 ? 0 : 2, maximumFractionDigits: 2 });
+  }
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
   function dnt() { return navigator.doNotTrack === "1" || navigator.globalPrivacyControl === true; }
   function track(type, data) {
@@ -187,9 +192,9 @@
       return '<div class="price"><strong>' + money(gross) + "</strong><span>incl. GST</span></div>";
     }
     var lines = applied.map(function (l) { return "<li>" + esc(l) + "</li>"; }).join("");
-    return '<div class="price"><strong>' + money(b.amountDue) + "</strong><span>to pay, after your credits</span></div>" +
+    return '<div class="price"><strong>' + exact(b.amountDue) + "</strong><span>to pay, after your credits</span></div>" +
       '<ul class="list credits-taken">' + lines + "</ul>" +
-      '<p class="note">Price ' + money(gross) + (Number(b.discount) > 0 ? ", less " + money(b.discount) : "") +
+      '<p class="note">Price ' + exact(gross) + (Number(b.discount) > 0 ? ", less " + exact(b.discount) : "") +
       (Number(b.bonusHours) > 0 ? ", plus " + esc(b.bonusHours) + " free hours" : "") + ". Incl. GST.</p>";
   }
 
@@ -204,7 +209,7 @@
       '<p class="note"><a href="#k=' + encodeURIComponent(state.k) + "&v=booking&b=" + encodeURIComponent(b.id) + '">Change or cancel</a></p></section>';
     if (isHome) {
       track("view", { v: "held-booking" });
-      return shell(inner + promisesHtml(), { step: b.status === "confirmed" ? 2 : 1, greet: "Hi " + firstName() + "." });
+      return shell(inner + clubHtml() + promisesHtml(), { step: b.status === "confirmed" ? 2 : 1, greet: "Hi " + firstName() + "." });
     }
     return inner;
   }
@@ -356,7 +361,7 @@
         '</a> <span class="word">' + esc(b.status) + "</span></li>";
     }).concat(pend.map(function (p) { return '<li>Requested: ' + esc(p.kind) + ' (we reply within ' + esc(p.replyWithinHours) + " hours)</li>"; }));
     var inner = '<section class="rise d1"><h2 class="rule">My bookings</h2>' +
-      (rows.length ? '<ul class="list">' + rows.join("") + "</ul>" : '<p>No bookings yet. <a href="#k=' + encodeURIComponent(state.k) + '&v=pick">Pick a morning</a>.</p>') + "</section>" + creditsHtml();
+      (rows.length ? '<ul class="list">' + rows.join("") + "</ul>" : '<p>No bookings yet. <a href="#k=' + encodeURIComponent(state.k) + '&v=pick">Pick a morning</a>.</p>') + "</section>" + clubHtml() + creditsHtml();
     return shell(inner, { nav: true, greet: "Your mornings, " + firstName() + "." });
   }
 
@@ -402,6 +407,22 @@
     for (var i = 0; i < r.captainEvery; i++) dots += '<span class="' + (i < into ? "on" : "") + '"></span>';
     return '<p class="note">' + into + " of " + r.captainEvery + " mornings done toward your " + esc(r.captainFreeHours) + " free hours.</p>" +
       '<p class="dots" aria-hidden="true">' + dots + "</p>";
+  }
+
+  // An Office Club member's stamp card: four mornings a month, one stamp for each that is booked. Coffee Van counts them.
+  function clubHtml() {
+    var club = state.session && state.session.club;
+    if (!club) return "";
+    var d = new Date(club.month + "-01T12:00:00");
+    var month = isNaN(d) ? club.month : d.toLocaleDateString("en-AU", { month: "long", year: "numeric" });
+    var stamps = "";
+    for (var i = 0; i < club.perMonth; i++) stamps += '<span class="' + (i < club.used ? "on" : "") + '"></span>';
+    var left = club.perMonth - club.used;
+    var line = left > 0
+      ? esc(club.used) + " of " + esc(club.perMonth) + " mornings booked in " + esc(month) + ". " + esc(left) + " left."
+      : esc(club.used) + " of " + esc(club.perMonth) + " mornings booked in " + esc(month) + ". That is the four: another morning is a request we confirm.";
+    return '<section class="rise d2 club"><h2 class="rule">Your Office Club</h2><p class="note">' + line + '</p><p class="stamps" aria-hidden="true">' + stamps + "</p>" +
+      '<p class="note"><a href="#k=' + encodeURIComponent(state.k) + '&v=pick">Book a club morning</a></p></section>';
   }
 
   function longDate(iso) {

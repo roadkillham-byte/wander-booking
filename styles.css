@@ -107,3 +107,7 @@ select option:disabled { color: #8a8a8a; }
 .dots span { display: inline-block; width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--sage); margin-right: 8px; }
 .dots span.on { background: var(--orange); border-color: var(--orange); }
 .credits-taken { margin-top: 10px; }
+.club { background: var(--paper); border: 2px dashed var(--sage); border-radius: 18px; padding: 4px 16px 14px; margin-top: 20px; }
+.stamps { margin: 8px 0 0; }
+.stamps span { display: inline-block; width: 30px; height: 30px; border-radius: 50%; border: 2px dashed var(--sage); margin-right: 10px; }
+.stamps span.on { background: var(--orange); border: 2px solid var(--orange-deep); }

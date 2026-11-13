@@ -17,7 +17,7 @@ var StoreLogic = (function () {
   var CREDIT_KINDS = ["returning", "referral", "friend", "captain"];
 
   var TABLES = {
-    clients: ["token", "firstName", "referralCode", "quote", "referrals"],
+    clients: ["token", "firstName", "referralCode", "quote", "referrals", "club"],
     events: ["time", "type", "data"],
     bookings: ["id", "clientToken", "status", "date", "startTime", "endTime", "people", "hours", "address", "total", "outOfHoursFee", "requestId",
       "discount", "amountDue", "bonusHours", "creditsApplied"],
@@ -88,6 +88,14 @@ var StoreLogic = (function () {
   function cleanLabels(list) {
     if (!Array.isArray(list)) return [];
     return list.slice(0, 5).map(function (x) { return clean(x, 80); }).filter(function (x) { return x !== ""; });
+  }
+
+  // An Office Club member's card for a month: numbers and a "YYYY-MM" month, nothing else. Anything malformed is no card.
+  function cleanClub(c) {
+    if (!c || typeof c !== "object" || !/^\d{4}-\d{2}$/.test(String(c.month))) return null;
+    var used = money(c.used), perMonth = money(c.perMonth);
+    if (used === null || perMonth === null || used < 0 || perMonth < 1) return null;
+    return { month: String(c.month), used: used, perMonth: perMonth };
   }
 
   // The referral offer in numbers, published by Coffee Van so the page's words follow what Coffee Van gives.
@@ -170,6 +178,7 @@ var StoreLogic = (function () {
           token: clean(c.token, 200), firstName: clean(c.firstName, 40), referralCode: clean(c.referralCode, 12),
           quote: c.quote ? JSON.stringify(c.quote) : "",
           referrals: JSON.stringify(cleanReferrals(c.referrals)),
+          club: JSON.stringify(cleanClub(c.club)),
         };
       });
       var bookings = (snapshot.bookings || []).map(function (b) {
@@ -250,6 +259,8 @@ var StoreLogic = (function () {
     try { quote = client.quote ? JSON.parse(client.quote) : null; } catch (e) { quote = null; }
     var referrals = [];
     try { referrals = client.referrals ? cleanReferrals(JSON.parse(client.referrals)) : []; } catch (e) { referrals = []; }
+    var club = null;
+    try { club = client.club ? cleanClub(JSON.parse(client.club)) : null; } catch (e) { club = null; }
     var bookings = db.read("bookings").filter(function (b) { return b.clientToken === token; }).map(function (b) {
       var applied = [];
       try { applied = b.creditsApplied ? cleanLabels(JSON.parse(b.creditsApplied)) : []; } catch (e) { applied = []; }
@@ -289,6 +300,7 @@ var StoreLogic = (function () {
       client: { firstName: client.firstName, referralCode: client.referralCode },
       quote: quote,
       referrals: referrals,
+      club: club,
       reward: reward,
       bookings: bookings,
       pending: pendingItems,
