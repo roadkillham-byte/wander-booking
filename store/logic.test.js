@@ -515,3 +515,37 @@ test("a published credit keeps its kind, so a friend's gift and a captain reward
   const kinds = S.session(db, ALEX, NOW).credits.map((c) => c.kind);
   assert.deepEqual(kinds, ["friend", "captain"]);
 });
+
+// ---- The funnel Sam looks at ----
+test("the funnel counts what clients did on the page in the last days, by type and by screen, and identifies nobody", () => {
+  const db = makeDb();
+  publish(db);
+  const at = (day) => `2026-11-${day}T01:00:00.000Z`;
+  const add = (time, type, data) => db.tables.events.push({ time, type, data: JSON.stringify(data || {}) });
+  add(at("20"), "view", { v: "held" }); add(at("20"), "view", { v: "held" }); add(at("21"), "view", { v: "pick" });
+  add(at("20"), "cta", { v: "held" }); add(at("21"), "cta", { v: "hold" });
+  add(at("20"), "booked", { outcome: "held" }); add(at("20"), "upgrade-shown", {}); add(at("20"), "upgrade-declined", {});
+  add("2026-09-01T01:00:00.000Z", "view", { v: "held" }); // far too old
+  const res = S.funnel(db, APP, "2026-12-01T07:00:00+11:00", 30);
+  assert.equal(res.ok, true);
+  assert.equal(res.days, 30);
+  assert.equal(res.since, "2026-11-02"); // 30 days including today
+  assert.equal(res.events, 8);
+  assert.deepEqual(res.totals, { view: 3, cta: 2, "upgrade-shown": 1, "upgrade-accepted": 0, "upgrade-declined": 1, booked: 1, calendar: 0, "referral-shared": 0 });
+  assert.deepEqual(res.views, { held: 2, pick: 1 });
+  assert.deepEqual(res.ctas, { held: 1, hold: 1 });
+  assert.equal(JSON.stringify(res).includes("TOKEN"), false);
+});
+
+test("the funnel is for the app token only, takes 1 to 90 days, and an empty store answers zeros", () => {
+  const db = makeDb();
+  publish(db);
+  assert.deepEqual(S.funnel(db, "wrong", NOW, 30), { ok: false, error: "not-allowed" });
+  assert.deepEqual(S.funnel(db, ALEX, NOW, 30), { ok: false, error: "not-allowed" }, "a client's token is not the app token");
+  assert.equal(S.funnel(db, APP, NOW, 0).days, 30, "a bad length falls back to the default");
+  assert.equal(S.funnel(db, APP, NOW, 500).days, 90);
+  const empty = S.funnel(db, APP, NOW, 7);
+  assert.equal(empty.events, 0);
+  assert.equal(empty.totals.view, 0);
+  assert.deepEqual(empty.views, {});
+});
