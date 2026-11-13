@@ -134,6 +134,7 @@ footer a{color:var(--forest)}
       </div>
       <p class="guar"><strong>Our promise:</strong> more than 15 minutes late and your first hour is free · no-show, full refund · a coffee that isn't right is remade or refunded.</p>
       <a class="go" id="go" href="#" rel="noopener">Email me my price and call me today</a>
+      <p class="ref-note" id="ref-note" hidden>A friend sent you. Send your details and we will thank them.</p>
       <p class="fine">Five details. We confirm your hours, start time and address on the call. Prefer the 4-Pack? Say so on the call, or reply to your quote.</p>
       <div class="msg" id="msg" role="alert" hidden></div>
     </section>
@@ -169,12 +170,17 @@ footer a{color:var(--forest)}
 <script src="config.js"></script>
 <script src="quote.js"></script>
 <script src="track.js"></script>
+<script src="referral.js"></script>
 <script src="boot.js"></script>
 <script>
 // The price below is Wander's Catering Rate Card (quote.js). Booking requests go to Wander's Google Form (set in
 // config.js). This page sends no email. If tracking is configured it records what visitors do here, never what they
 // type (see privacy.html).
 const FORM_URL = window.WANDER_FORM_URL || "";
+// A friend's code from ?ref= (kept 30 days). It only reaches the form, and only says thank you, when the form's referral question is set.
+const referralCode = (() => { try { return window.WanderReferral.captureReferral(location.search, localStorage, Date.now()); } catch (err) { return null; } })();
+const referralLive = !!referralCode && /^\d+$/.test(String(window.WANDER_FORM_REFERRAL_ENTRY || ""));
+document.getElementById("ref-note").hidden = !referralLive;
 const { quote, packPrice, packBonus } = window.WanderQuote;
 const peopleEl = document.getElementById("people"), msg = document.getElementById("msg"), go = document.getElementById("go");
 const hours = () => Number(document.querySelector('input[name="hours"]:checked').value);
@@ -202,7 +208,10 @@ document.addEventListener("input", showQuote); showQuote();
 go.addEventListener("click", (event) => {
   if (tracker) tracker.track("cta", { form: /^https:\/\/(docs\.google\.com\/forms|forms\.gle)\//.test(FORM_URL) });
   if (tracker) tracker.flush();
-  if (/^https:\/\/(docs\.google\.com\/forms|forms\.gle)\//.test(FORM_URL)) { go.href = FORM_URL; return; }
+  if (/^https:\/\/(docs\.google\.com\/forms|forms\.gle)\//.test(FORM_URL)) {
+    go.href = window.WanderReferral.buildFormUrl(FORM_URL, window.WANDER_FORM_REFERRAL_ENTRY, referralCode);
+    return;
+  }
   event.preventDefault();
   msg.textContent = "Online requests open shortly. To book now, call 0492 801 058 with your price above.";
   msg.hidden = false;
