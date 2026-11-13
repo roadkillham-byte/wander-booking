@@ -70,7 +70,7 @@ export function seededDb(now = new Date().toISOString()) {
         quote: { date: "2026-12-12", startTime: "09:00", people: 20, hours: 3, address: "3 Lake Road, Tea Gardens", total: 619, fee: 0 } },
       { token: MOCK_RETURNING_TOKEN, firstName: "Sam", referralCode: "H4BC-7WDR" },
       { token: MOCK_HANDMADE_TOKEN, firstName: "Pat", referralCode: "" },
-      { token: MOCK_TWO_TOKEN, firstName: "Lee", referralCode: "" },
+      { token: MOCK_TWO_TOKEN, firstName: "Lee", referralCode: "", club: { month: now.slice(0, 7), used: 2, perMonth: 4 } },
     ],
     bookings: [
       { id: "bk-old", clientToken: MOCK_RETURNING_TOKEN, status: "completed", date: "2026-10-10", startTime: "09:00", endTime: "12:00",
@@ -80,7 +80,7 @@ export function seededDb(now = new Date().toISOString()) {
         people: 0, hours: 3, address: "", total: 0, outOfHoursFee: 0, requestId: "" },
       { id: "bk-l1", clientToken: MOCK_TWO_TOKEN, status: "confirmed", date: "2026-12-05", startTime: "09:00", endTime: "12:00",
         people: 20, hours: 3, address: "1 Main Street, Forster", total: 619, outOfHoursFee: 0, requestId: "",
-        discount: 62, amountDue: 557, bonusHours: 2, creditsApplied: ["10% off your first morning", "2 free hours (Team Captain)"] },
+        discount: 61.9, amountDue: 557.1, bonusHours: 2, creditsApplied: ["10% off your first morning", "2 free hours (Team Captain)"] },
       { id: "bk-l2", clientToken: MOCK_TWO_TOKEN, status: "confirmed", date: "2026-12-19", startTime: "10:00", endTime: "13:00",
         people: 30, hours: 3, address: "9 Beach Road, Hawks Nest", total: 900, outOfHoursFee: 0, requestId: "" },
     ],

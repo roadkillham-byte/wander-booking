@@ -254,12 +254,26 @@ await check("a confirmed booking shows the credits taken, the discount and what 
   await page.goto(url + "/#k=" + MOCK_TWO_TOKEN + "&v=booking&b=bk-l1");
   await page.waitForSelector(".ticket");
   const txt = await page.innerText("#app");
-  for (const want of ["$557", "10% off your first morning", "2 free hours (Team Captain)", "$62", "$619"]) {
+  for (const want of ["$557.10", "10% off your first morning", "2 free hours (Team Captain)", "$61.90", "$619"]) {
     if (!txt.includes(want)) throw new Error("missing: " + want + " in " + txt.slice(0, 500));
   }
   await noOverflowAndNoJunk("Booking with credits");
   await page.waitForTimeout(1200);
   await page.screenshot({ path: shots + "/dash-7-credits.png", fullPage: true });
+});
+
+await check("an Office Club member sees their card with four stamps, and a client who is not a member sees none", async () => {
+  await page.goto(url + "/#k=" + MOCK_TWO_TOKEN + "&v=bookings");
+  await page.waitForSelector(".club");
+  const txt = await page.innerText(".club");
+  if (!txt.includes("Office Club") || !txt.includes("2 of 4")) throw new Error("card text: " + txt);
+  if ((await page.$$(".club .stamps span")).length !== 4 || (await page.$$(".club .stamps span.on")).length !== 2) throw new Error("stamps should be 2 of 4");
+  await noOverflowAndNoJunk("Office Club card");
+  await page.waitForTimeout(1200);
+  await page.screenshot({ path: shots + "/dash-9-club.png", fullPage: true });
+  await page.goto(url + "/#k=" + MOCK_CLIENT_TOKEN + "&v=bookings");
+  await page.waitForSelector("#app h2");
+  if (await page.$(".club")) throw new Error("a client who is not a member was shown a club card");
 });
 
 await check("the Refer screen states the offer for both sides, with progress toward the free hours", async () => {

@@ -7,7 +7,7 @@ adapter in `store/Adapter.gs`) and Coffee Van's sync (`server/dashboardSync.mjs`
 ## Conventions
 
 - Times: Australia/Sydney local wall-clock. Dates `YYYY-MM-DD`, times `HH:MM` (24-hour). Never trust a browser or server zone.
-- Money: whole dollars, GST included, as Coffee Van quotes it. The dashboard never computes a price.
+- Money: GST included, as Coffee Van quotes it, in dollars. Prices are whole dollars; a credit's `discount` and a booking's `amountDue` can have cents (10% of $619 is $61.90), because they are exactly what the client is charged. The dashboard never computes a price.
 - Every response has `ok` (boolean). A failure is `{ok:false, error:"<short code>"}`. A rule miss is never a failure: it is a
   `requested` outcome. Two kinds of real failure, and the page tells the client which one it is:
   - The store could not be reached or could not answer (`network` is made by the page when the call fails or the reply is not
@@ -39,6 +39,7 @@ adapter in `store/Adapter.gs`) and Coffee Van's sync (`server/dashboardSync.mjs`
 - `credits`: `{kind: "returning"|"referral"|"friend"|"captain", label, expiresAt}`, the credits still waiting. Labels are the words the page shows.
   `friend` is the 10% a referred friend gets on their first morning; `captain` is the free hours a referrer earns on every third
   friend's completed morning.
+- `club`: `null` for a client who is not an Office Club member, else `{month: "YYYY-MM", used, perMonth}`: how many of their mornings this month are booked (any that is not cancelled), out of `perMonth` (4). Coffee Van counts them; the page shows a stamp card.
 - `reward`: `{referrerPercent, friendPercent, captainEvery, captainFreeHours}`, the referral offer in numbers, published by Coffee Van
   so the page's words never drift from what Coffee Van gives (10, 10, 3, 2 today). `null` until the first publish.
 - `pack`: `null`, or `{mornings: 4, used, left, bonusHours, expiresAt}`.
@@ -101,7 +102,7 @@ ack never opens a gap. See `fixtures/contract/pending.json` and `ack.json`.
 
 `POST ?action=publish` with `{k, snapshot}`. The snapshot replaces clients, bookings, busy times and credits; it is
 idempotent. `fixtures/contract/publish.json` is an example. Clients are keyed by `token` (minted by Coffee Van, emailed as the
-sign-in link). `snapshot.reward` has the shape above and `snapshot.bookings[]` carries the credit fields above. `clients[].referrals` has the shape above; the store keeps a first name (40 characters) and one of the two
+sign-in link). `clients[].club` has the shape above (absent for a non-member). `snapshot.reward` has the shape above and `snapshot.bookings[]` carries the credit fields above. `clients[].referrals` has the shape above; the store keeps a first name (40 characters) and one of the two
 statuses, and drops everything else, including entries with any other status. Bookings carry `requestId` when they came from the dashboard or the form.
 
 ## Store errors
