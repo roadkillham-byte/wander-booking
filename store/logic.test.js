@@ -316,9 +316,12 @@ test("availability lists the start times a hold would be given, and the notice r
   assert.equal(res.ok, true);
   assert.equal(res.stale, false);
   assert.deepEqual(res.window, { from: "2026-12-01", through: "2027-01-29" });
-  // Booked 09:00 to 12:00 on 5 Dec, with an hour either side for the van: only afternoon starts remain.
-  assert.deepEqual(res.days["2026-12-05"], ["13:00", "13:30", "14:00", "14:30", "15:00", "15:30", "16:00", "16:30", "17:00", "17:30", "18:00"]);
-  assert.equal(res.days["2026-12-06"].length, 25);
+  // Booked 09:00 to 12:00 on 5 Dec, with an hour either side for the van, and trading closes at 16:00: one start remains.
+  assert.deepEqual(res.days["2026-12-05"], ["13:00"]);
+  // A free day offers every start whose 3 hours end by 16:00: 07:00 to 13:00.
+  assert.equal(res.days["2026-12-06"].length, 13);
+  assert.equal(res.days["2026-12-06"][0], "07:00");
+  assert.equal(res.days["2026-12-06"][12], "13:00");
   // 7 am on 1 Dec is "now": a start tomorrow at 06:00 is 23 hours away, so the first free start is 07:00.
   assert.equal(res.days["2026-12-02"][0], "07:00");
   assert.equal(res.days["2026-12-01"], undefined, "today is inside 24 hours");
@@ -355,16 +358,16 @@ test("availability counts holds still waiting for Coffee Van, so a slot another 
   const after = S.availability(db, { k: ALEX, hours: 3 }, NOW).days["2026-12-19"];
   assert.equal(after.indexOf("09:00"), -1);
   assert.equal(after.indexOf("10:00"), -1);
-  assert.equal(after.indexOf("14:00") >= 0, true);
+  assert.equal(after.indexOf("13:00") >= 0, true);
 });
 
 test("availability for a change leaves the client's own booking out, and nobody else's", () => {
   const db = makeDb();
   publish(db);
   const own = S.availability(db, { k: ALEX, hours: 3, bookingId: "bk-101" }, NOW).days["2026-12-05"];
-  assert.equal(own.length, 25, "with her own booking out of the way the whole day is free");
+  assert.equal(own.length, 13, "with her own booking out of the way the whole trading day is free");
   const other = S.availability(db, { k: SAM, hours: 3, bookingId: "bk-101" }, NOW).days["2026-12-05"];
-  assert.equal(other.length, 11, "another client's booking id changes nothing for them");
+  assert.equal(other.length, 1, "another client's booking id changes nothing for them");
 });
 
 test("availability needs a client token and sensible hours", () => {
@@ -453,4 +456,62 @@ test("a time the store lists free for a change is applied when the client asks, 
       assert.equal(outcome === "applied", listed.indexOf(time) >= 0, `${date} ${time}: listed=${listed.indexOf(time) >= 0}, outcome=${outcome}`);
     }
   }
+});
+
+test("a hold outside the trading hours is asked of Sam and says why, and nothing outside the hours is ever listed free", () => {
+  const db = makeDb();
+  publish(db);
+  const late = S.request(db, hold(ALEX, "req-late", "2026-12-12", "14:00"), NOW); // 14:00 to 17:00
+  assert.equal(late.outcome, "requested");
+  const queued = db.tables.queue.filter((q) => q.id === "req-late")[0];
+  assert.deepEqual(JSON.parse(queued.payload).request.reasons, ["outside our usual hours (7 am to 4 pm)"]);
+  const days = S.availability(db, { k: ALEX, hours: 3 }, NOW).days;
+  Object.keys(days).forEach((d) => days[d].forEach((t) => {
+    assert.ok(t >= "07:00" && t <= "13:00", d + " " + t + " is outside the trading hours for a 3 hour morning");
+  }));
+});
+
+test("the credits Coffee Van applied to a booking, the amount due and the referral offer reach the client's session", () => {
+  const db = makeDb();
+  const reward = { referrerPercent: 10, friendPercent: 10, captainEvery: 3, captainFreeHours: 2 };
+  publish(db, {
+    reward,
+    bookings: [{ id: "bk-101", clientToken: ALEX, status: "confirmed", date: "2026-12-05", startTime: "09:00", endTime: "12:00", people: 20, hours: 3,
+      address: "1 Main Street, Forster", total: 619, outOfHoursFee: 0, requestId: "", discount: 62, amountDue: 557, bonusHours: 2,
+      creditsApplied: ["10% off your first morning", "2 free hours (Team Captain)"] }],
+  });
+  const view = S.session(db, ALEX, NOW);
+  assert.deepEqual(view.reward, reward);
+  const b = view.bookings[0];
+  assert.deepEqual({ discount: b.discount, amountDue: b.amountDue, bonusHours: b.bonusHours, creditsApplied: b.creditsApplied },
+    { discount: 62, amountDue: 557, bonusHours: 2, creditsApplied: ["10% off your first morning", "2 free hours (Team Captain)"] });
+});
+
+test("a booking with no credits owes its price, and the offer is null before the first publish that carries it", () => {
+  const db = makeDb();
+  publish(db);
+  const view = S.session(db, ALEX, NOW);
+  assert.equal(view.reward, null);
+  const b = view.bookings[0];
+  assert.deepEqual({ discount: b.discount, amountDue: b.amountDue, bonusHours: b.bonusHours, creditsApplied: b.creditsApplied },
+    { discount: 0, amountDue: 619, bonusHours: 0, creditsApplied: [] });
+});
+
+test("a held date shows at once with its price as the amount due and no credit yet", () => {
+  const db = makeDb();
+  publish(db);
+  S.request(db, Object.assign(hold(ALEX, "req-due", "2026-12-19", "09:00"), { shownTotal: 654, shownFee: 35 }), NOW);
+  const b = S.session(db, ALEX, NOW).bookings.filter((x) => x.id === "hold-req-due")[0];
+  assert.deepEqual({ discount: b.discount, amountDue: b.amountDue, creditsApplied: b.creditsApplied }, { discount: 0, amountDue: 654, creditsApplied: [] });
+});
+
+test("a published credit keeps its kind, so a friend's gift and a captain reward reach the page", () => {
+  const db = makeDb();
+  publish(db, { credits: [
+    { clientToken: ALEX, kind: "friend", label: "10% off your first morning", expiresAt: "2027-11-13" },
+    { clientToken: ALEX, kind: "captain", label: "2 free hours on your next booking", expiresAt: "2027-11-13" },
+    { clientToken: ALEX, kind: "bogus", label: "x", expiresAt: "2027-11-13" },
+  ] });
+  const kinds = S.session(db, ALEX, NOW).credits.map((c) => c.kind);
+  assert.deepEqual(kinds, ["friend", "captain"]);
 });

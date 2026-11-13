@@ -14,6 +14,9 @@ var WanderRules = (function () {
   const SHORT_REPLY_HOURS = 2;
   const VAN_GAP_MINUTES = 60; // travel between two bookings on one van (to confirm with Sam)
   const STALE_AFTER_HOURS = 6;
+  const TRADING_START = "07:00"; // every day, 07:00 to 16:00 (Sam, 14 Nov 2026); the same window the out-of-hours fee uses
+  const TRADING_END = "16:00";
+  const TRADING_WORDS = "outside our usual hours (7 am to 4 pm)";
 
   const partsFormat = new Intl.DateTimeFormat("en-AU", {
     timeZone: ZONE, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit",
@@ -94,6 +97,13 @@ var WanderRules = (function () {
       });
   }
 
+  // The whole booking sits inside the trading hours: it starts at 07:00 or later and ends by 16:00.
+  function withinTradingHours(startTime, hours) {
+    const from = minutesOf(startTime);
+    if (from === null || !(Number(hours) > 0)) return false;
+    return from >= minutesOf(TRADING_START) && from + Math.round(Number(hours) * 60) <= minutesOf(TRADING_END);
+  }
+
   // Availability older than six hours is stale: a client's pick then becomes a request, never an automatic yes.
   function isStale(asOfIso, nowIso) {
     const asOf = instantOf(asOfIso), now = instantOf(nowIso);
@@ -108,6 +118,7 @@ var WanderRules = (function () {
     const reasons = [];
     if (isStale(asOfIso, nowIso)) reasons.push("availability is out of date");
     if (noticeHours(nowIso, request.date, request.startTime) < NOTICE_HOURS) reasons.push("less than 24 hours' notice");
+    if (!withinTradingHours(request.startTime, request.hours)) reasons.push(TRADING_WORDS);
     if (!slotIsFree(request.date, request.startTime, request.hours, others)) reasons.push("the time is not free on the van");
     if (Number(request.travelKm || 0) > TRAVEL_FREE_KM_ONE_WAY) reasons.push("the address is beyond free travel");
     return { decision: reasons.length === 0 ? "held" : "requested", reasons };
@@ -120,6 +131,7 @@ var WanderRules = (function () {
     if (isStale(asOfIso, nowIso)) reasons.push("availability is out of date");
     if (noticeHours(nowIso, booking.date, booking.startTime) < NOTICE_HOURS) reasons.push("less than 24 hours' notice");
     if (noticeHours(nowIso, change.date, change.startTime) < NOTICE_HOURS) reasons.push("the new time is less than 24 hours away");
+    if (!withinTradingHours(change.startTime, change.hours)) reasons.push("the new time is " + TRADING_WORDS);
     if (!slotIsFree(change.date, change.startTime, change.hours, others)) reasons.push("the new time is not free on the van");
     if (Number(change.travelKm || 0) > TRAVEL_FREE_KM_ONE_WAY) reasons.push("the address is beyond free travel");
     return { decision: reasons.length === 0 ? "applied" : "requested", reasons };
@@ -147,7 +159,7 @@ var WanderRules = (function () {
 
   return {
     sameAgainDate, sydneyDate, addDays,
-    ZONE, DEFAULT_START, TRAVEL_FREE_KM_ONE_WAY, NOTICE_HOURS, VAN_GAP_MINUTES, STALE_AFTER_HOURS,
+    ZONE, DEFAULT_START, TRAVEL_FREE_KM_ONE_WAY, NOTICE_HOURS, VAN_GAP_MINUTES, STALE_AFTER_HOURS, TRADING_START, TRADING_END, withinTradingHours,
     sydneyEpoch, instantOf, noticeHours, replyWithinHours, slotIsFree, isStale, decideHold, decideChange, decideCancel,
   };
 })();

@@ -14,11 +14,13 @@ var StoreLogic = (function () {
   var CATERING_HOURS = [2, 3, 4, 5, 6];
   var MAX_PEOPLE = 200;
   var PEOPLE_STEP_MIN = 1;
+  var CREDIT_KINDS = ["returning", "referral", "friend", "captain"];
 
   var TABLES = {
     clients: ["token", "firstName", "referralCode", "quote", "referrals"],
     events: ["time", "type", "data"],
-    bookings: ["id", "clientToken", "status", "date", "startTime", "endTime", "people", "hours", "address", "total", "outOfHoursFee", "requestId"],
+    bookings: ["id", "clientToken", "status", "date", "startTime", "endTime", "people", "hours", "address", "total", "outOfHoursFee", "requestId",
+      "discount", "amountDue", "bonusHours", "creditsApplied"],
     busy: ["date", "startTime", "endTime"],
     holds: ["requestId", "id", "clientToken", "date", "startTime", "endTime", "people", "hours", "address", "total", "outOfHoursFee", "createdAt"],
     queue: ["id", "kind", "receivedAt", "clientToken", "payload", "acked"],
@@ -74,6 +76,28 @@ var StoreLogic = (function () {
       if (!r || (r.status !== "booked" && r.status !== "completed")) return;
       out.push({ firstName: clean(r.firstName, 40), status: r.status });
     });
+    return out;
+  }
+
+  function money(v) {
+    var n = Number(v);
+    return Number.isFinite(n) && v !== "" && v !== null && v !== undefined ? n : null;
+  }
+
+  // The labels of the credits Coffee Van took for a booking, as a short list of plain words.
+  function cleanLabels(list) {
+    if (!Array.isArray(list)) return [];
+    return list.slice(0, 5).map(function (x) { return clean(x, 80); }).filter(function (x) { return x !== ""; });
+  }
+
+  // The referral offer in numbers, published by Coffee Van so the page's words follow what Coffee Van gives.
+  function cleanReward(r) {
+    if (!r || typeof r !== "object") return null;
+    var out = {
+      referrerPercent: money(r.referrerPercent), friendPercent: money(r.friendPercent),
+      captainEvery: money(r.captainEvery), captainFreeHours: money(r.captainFreeHours),
+    };
+    for (var k in out) if (out[k] === null) return null;
     return out;
   }
 
@@ -149,15 +173,19 @@ var StoreLogic = (function () {
         };
       });
       var bookings = (snapshot.bookings || []).map(function (b) {
+        var total = Number(b.total || 0), fee = Number(b.outOfHoursFee || 0), discount = Math.max(0, Number(b.discount || 0));
+        var due = money(b.amountDue);
         return {
           id: clean(b.id, 80), clientToken: clean(b.clientToken, 200), status: clean(b.status, 20), date: clean(b.date, 10),
           startTime: clean(b.startTime, 5), endTime: clean(b.endTime, 5), people: Number(b.people), hours: Number(b.hours),
-          address: clean(b.address, 200), total: Number(b.total || 0), outOfHoursFee: Number(b.outOfHoursFee || 0),
+          address: clean(b.address, 200), total: total, outOfHoursFee: fee,
           requestId: clean(b.requestId, 80),
+          discount: discount, amountDue: due === null ? Math.max(0, total + fee - discount) : due,
+          bonusHours: Math.max(0, Number(b.bonusHours || 0)), creditsApplied: JSON.stringify(cleanLabels(b.creditsApplied)),
         };
       });
       var busy = (snapshot.busy || []).map(function (b) { return { date: clean(b.date, 10), startTime: clean(b.startTime, 5), endTime: clean(b.endTime, 5) }; });
-      var credits = (snapshot.credits || []).map(function (c) {
+      var credits = (snapshot.credits || []).filter(function (c) { return CREDIT_KINDS.indexOf(c.kind) >= 0; }).map(function (c) {
         return { clientToken: clean(c.clientToken, 200), kind: clean(c.kind, 12), label: clean(c.label, 80), expiresAt: clean(c.expiresAt, 10) };
       });
       var published = {};
@@ -170,6 +198,7 @@ var StoreLogic = (function () {
       db.read("queue").forEach(function (q) { if (String(q.acked) === "yes") acked[q.id] = true; });
       var today = String(snapshot.asOf).slice(0, 10); // the UTC date is never later than the Sydney date: a hold is only dropped once its day is certainly past
       db.write("holds", db.read("holds").filter(function (h) { return !published[h.requestId] && !acked[h.requestId] && h.date >= today; }));
+      setMeta(db, "reward", JSON.stringify(cleanReward(snapshot.reward)));
       setMeta(db, "asOf", clean(snapshot.asOf, 40));
       setMeta(db, "publishedAt", now);
       if (snapshot.prices) setMeta(db, "prices", JSON.stringify(snapshot.prices));
@@ -222,9 +251,15 @@ var StoreLogic = (function () {
     var referrals = [];
     try { referrals = client.referrals ? cleanReferrals(JSON.parse(client.referrals)) : []; } catch (e) { referrals = []; }
     var bookings = db.read("bookings").filter(function (b) { return b.clientToken === token; }).map(function (b) {
+      var applied = [];
+      try { applied = b.creditsApplied ? cleanLabels(JSON.parse(b.creditsApplied)) : []; } catch (e) { applied = []; }
+      var total = Number(b.total || 0), fee = Number(b.outOfHoursFee || 0), discount = Number(b.discount || 0);
+      var due = money(b.amountDue);
       return {
         id: b.id, status: b.status, date: b.date, startTime: b.startTime, endTime: b.endTime, people: b.people, hours: b.hours,
         address: b.address, total: b.total, outOfHoursFee: b.outOfHoursFee,
+        discount: discount, amountDue: due === null ? Math.max(0, total + fee - discount) : due,
+        bonusHours: Number(b.bonusHours || 0), creditsApplied: applied,
       };
     });
     // A date this client has just held, or a change just applied, shows at once; Coffee Van's next publish replaces it.
@@ -233,8 +268,13 @@ var StoreLogic = (function () {
       for (var i = 0; i < bookings.length; i++) if (bookings[i].id === h.id) at = i;
       var moved = { date: h.date, startTime: h.startTime, endTime: h.endTime, people: Number(h.people), hours: Number(h.hours), address: h.address };
       if (at >= 0) bookings[at] = Object.assign({}, bookings[at], moved);
-      else bookings.push(Object.assign({ id: h.id, status: "held", total: Number(h.total || 0), outOfHoursFee: Number(h.outOfHoursFee || 0) }, moved));
+      else {
+        var heldTotal = Number(h.total || 0), heldFee = Number(h.outOfHoursFee || 0);
+        bookings.push(Object.assign({ id: h.id, status: "held", total: heldTotal, outOfHoursFee: heldFee, discount: 0, amountDue: heldTotal + heldFee, bonusHours: 0, creditsApplied: [] }, moved));
+      }
     });
+    var reward = null;
+    try { reward = cleanReward(JSON.parse(metaValue(db, "reward") || "null")); } catch (e) { reward = null; }
     var pendingItems = db.read("queue").filter(function (q) { return q.clientToken === token && String(q.acked) !== "yes"; }).map(function (q) {
       return { id: q.id, kind: q.kind, replyWithinHours: 24 };
     });
@@ -249,6 +289,7 @@ var StoreLogic = (function () {
       client: { firstName: client.firstName, referralCode: client.referralCode },
       quote: quote,
       referrals: referrals,
+      reward: reward,
       bookings: bookings,
       pending: pendingItems,
       credits: credits,

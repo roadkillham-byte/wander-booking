@@ -134,7 +134,7 @@
       '<p class="note">Book it and we hold this date for you. We reply within 24 hours to confirm.</p>' +
       '<button type="button" class="go" id="book" data-date="' + esc(q.date) + '" data-start="' + esc(q.startTime) + '" data-people="' + esc(q.people) +
       '" data-hours="' + esc(q.hours) + '" data-address="' + esc(q.address || "") + '">Book this morning</button>' +
-      '<p class="note"><a href="#k=' + encodeURIComponent(state.k) + '&v=pick">Change the date, time or people</a></p></section>';
+      '<p class="note"><a href="#k=' + encodeURIComponent(state.k) + '&v=pick">Change the date, time or people</a></p></section>' + creditsHtml();
     track("view", { v: "held" });
     return shell(inner + promisesHtml(), { step: 1, greet: "Hi " + firstName() + ". Here is your morning." });
   }
@@ -179,11 +179,25 @@
     return shell(inner + promisesHtml(), { step: 0, greet: "Welcome back, " + firstName() + "." });
   }
 
+  // The price, and when Coffee Van has taken credits, what was taken and what to pay. The page only shows these numbers.
+  function priceHtml(b) {
+    var gross = Number(b.total) + Number(b.outOfHoursFee || 0);
+    var applied = b.creditsApplied || [];
+    if (!applied.length && !(Number(b.discount) > 0) && !(Number(b.bonusHours) > 0)) {
+      return '<div class="price"><strong>' + money(gross) + "</strong><span>incl. GST</span></div>";
+    }
+    var lines = applied.map(function (l) { return "<li>" + esc(l) + "</li>"; }).join("");
+    return '<div class="price"><strong>' + money(b.amountDue) + "</strong><span>to pay, after your credits</span></div>" +
+      '<ul class="list credits-taken">' + lines + "</ul>" +
+      '<p class="note">Price ' + money(gross) + (Number(b.discount) > 0 ? ", less " + money(b.discount) : "") +
+      (Number(b.bonusHours) > 0 ? ", plus " + esc(b.bonusHours) + " free hours" : "") + ". Incl. GST.</p>";
+  }
+
   function renderBookingCard(b, isHome) {
     var inner = '<section class="rise d1"><h2 class="rule">' + (b.status === "confirmed" ? "You are confirmed" : "Your morning is held") + "</h2>" +
       '<div class="ticket"><dl><dt>Date</dt><dd>' + esc(dayName(b.date)) + "</dd><dt>Start</dt><dd>" + esc(clock(b.startTime)) +
       "</dd><dt>People</dt><dd>" + esc(b.people) + "</dd><dt>Hours</dt><dd>" + esc(b.hours) + "</dd><dt>Where</dt><dd>" + esc(b.address) +
-      '</dd></dl><div class="price"><strong>' + money(Number(b.total) + Number(b.outOfHoursFee || 0)) + "</strong><span>incl. GST</span></div></div>" +
+      '</dd></dl>' + priceHtml(b) + "</div>" +
       '<p class="note">' + (b.status === "confirmed"
         ? "We will text you the day before. Need to change it? Use the links below."
         : "We reply within 24 hours to confirm. Nothing is charged before we confirm.") + "</p>" +
@@ -220,9 +234,11 @@
     return shell(inner, { step: 0, greet: mode === "change" ? "Hi " + firstName() + "." : "Hi " + firstName() + ". Let's find your morning." });
   }
 
+  // A start inside our hours is free or taken; one outside them is neither: it is a request we confirm by text.
   function timeLabel(t, hours, taken) {
     var fee = feeFor(t, hours);
-    return clock(t) + (fee ? " (+" + money(fee) + ")" : "") + (taken ? " - taken" : "");
+    var outside = !WanderRules.withinTradingHours(t, hours);
+    return clock(t) + (fee ? " (+" + money(fee) + ")" : "") + (taken ? " - taken" : outside ? " - we confirm by text" : "");
   }
   function minutesOf(hhmm) { var m = /^(\d{2}):(\d{2})$/.exec(hhmm || ""); return m ? Number(m[1]) * 60 + Number(m[2]) : null; }
   // "between 1:00 pm and 6:00 pm", one phrase for each run of free half hours.
@@ -273,11 +289,11 @@
       var inWindow = data && !data.stale && /^\d{4}-\d{2}-\d{2}$/.test(date) && date >= data.window.from && date <= data.window.through;
       var free = inWindow ? (data.days[date] || []) : null;
       Array.prototype.forEach.call(form.startTime.options, function (o) {
-        var taken = free !== null && free.indexOf(o.value) < 0;
+        var taken = free !== null && WanderRules.withinTradingHours(o.value, hours) && free.indexOf(o.value) < 0;
         o.disabled = taken;
         o.textContent = timeLabel(o.value, hours, taken);
       });
-      if (free && free.length && free.indexOf(form.startTime.value) < 0) { form.startTime.value = free[0]; updatePickPrice(); }
+      if (free && free.length && free.indexOf(form.startTime.value) < 0 && WanderRules.withinTradingHours(form.startTime.value, hours)) { form.startTime.value = free[0]; updatePickPrice(); }
       out.innerHTML = availabilityHtml(data, date, free);
     });
   }
@@ -325,7 +341,7 @@
       "<li>We turn up" + (b ? " at " + esc(clock(b.startTime)) : "") + ". Set-up is included.</li></ol>" +
       '<p class="note">' + calendarBtn + "</p></section>" +
       '<section class="rise d2 refer"><h2 class="rule">Know a team that would love this?</h2>' +
-      '<p>Send them your link. When their first morning runs, you get 10% off your next booking.</p>' +
+      pitchHtml() +
       '<button type="button" class="go ghost" id="share">Copy my referral link</button>' +
       '<p class="note"><a href="#k=' + encodeURIComponent(state.k) + '&v=refer">See who you have referred</a></p></section>';
     track("booked", { outcome: response ? response.outcome : "held" });
@@ -367,6 +383,27 @@
     return shell(inner, { nav: true, greet: "Your 4-Pack, " + firstName() + "." });
   }
 
+  var ORDINALS = { 2: "second", 3: "third", 4: "fourth", 5: "fifth" };
+  // What the offer is, in the numbers Coffee Van published. Before the first publish carries them, the old plain line.
+  function pitchHtml() {
+    var r = state.session && state.session.reward;
+    if (!r) return "<p>Send them your link. When their first morning runs, you get 10% off your next booking.</p>";
+    return "<p>Send them your link. Your friend gets " + esc(r.friendPercent) + "% off their first morning. When it runs, you get " +
+      esc(r.referrerPercent) + "% off your next booking.</p>" +
+      "<p>Every " + esc(ORDINALS[r.captainEvery] || r.captainEvery + "th") + " friend's morning earns you " + esc(r.captainFreeHours) + " free hours on top.</p>";
+  }
+  // Dots toward the next free-hours reward: how many of this round's friends' mornings are done.
+  function progressHtml() {
+    var r = state.session && state.session.reward;
+    if (!r || !(r.captainEvery > 0)) return "";
+    var done = ((state.session && state.session.referrals) || []).filter(function (x) { return x.status === "completed"; }).length;
+    var into = done % r.captainEvery;
+    var dots = "";
+    for (var i = 0; i < r.captainEvery; i++) dots += '<span class="' + (i < into ? "on" : "") + '"></span>';
+    return '<p class="note">' + into + " of " + r.captainEvery + " mornings done toward your " + esc(r.captainFreeHours) + " free hours.</p>" +
+      '<p class="dots" aria-hidden="true">' + dots + "</p>";
+  }
+
   function longDate(iso) {
     var d = new Date(iso + "T12:00:00");
     return isNaN(d) ? iso : d.toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric" });
@@ -390,7 +427,7 @@
       }).join("") + "</ul>"
       : "<p>No one yet. Send your link to a team that would love a morning.</p>";
     var inner = '<section class="rise d1"><h2 class="rule">Refer a team</h2>' +
-      "<p>Send them your link. When their first morning runs, you get 10% off your next booking.</p>" +
+      pitchHtml() + progressHtml() +
       (code ? '<p class="refcode">Your code: <code>' + esc(code) + "</code></p>" : "") +
       '<button type="button" class="go" id="share">Copy my referral link</button>' + rows + "</section>" + creditsHtml();
     track("view", { v: "refer" });

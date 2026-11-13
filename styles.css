@@ -103,3 +103,7 @@ fieldset legend { font-size: 1rem; margin-bottom: 6px; width: 100%; }
 .fail { background: var(--paper); border: 2px solid var(--orange); border-radius: 16px; padding: 4px 16px 14px; margin-top: 16px; }
 .fail h2.rule { margin-top: 14px; }
 select option:disabled { color: #8a8a8a; }
+.dots { margin: 6px 0 0; }
+.dots span { display: inline-block; width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--sage); margin-right: 8px; }
+.dots span.on { background: var(--orange); border-color: var(--orange); }
+.credits-taken { margin-top: 10px; }

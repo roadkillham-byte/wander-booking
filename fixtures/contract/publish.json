@@ -19,7 +19,7 @@
       {
         "id": "bk-101",
         "clientToken": "CLIENT-TOKEN-FIXTURE",
-        "status": "held",
+        "status": "confirmed",
         "date": "2026-12-05",
         "startTime": "09:00",
         "endTime": "12:00",
@@ -28,7 +28,14 @@
         "address": "1 Main Street, Forster",
         "total": 619,
         "outOfHoursFee": 0,
-        "requestId": null
+        "requestId": null,
+        "discount": 62,
+        "amountDue": 557,
+        "bonusHours": 2,
+        "creditsApplied": [
+          "10% off your first morning",
+          "2 free hours (Team Captain)"
+        ]
       }
     ],
     "busy": [
@@ -46,6 +53,12 @@
         "expiresAt": "2027-11-13"
       }
     ],
-    "packs": []
+    "packs": [],
+    "reward": {
+      "referrerPercent": 10,
+      "friendPercent": 10,
+      "captainEvery": 3,
+      "captainFreeHours": 2
+    }
   }
 }

@@ -155,7 +155,11 @@ await check("the Pick screen shows when the van is free: taken times are switche
   if (!nine.off || !/taken/i.test(nine.t)) throw new Error("09:00 should be switched off and say taken: " + JSON.stringify(nine));
   if (one.off) throw new Error("13:00 should be free");
   const txt = await page.innerText("#avail");
-  if (!/1:00 pm/.test(txt) || !/6:00 pm/.test(txt)) throw new Error("free window not written out: " + txt);
+  if (!/at 1:00 pm/.test(txt) || /6:00 pm/.test(txt)) throw new Error("free window not written out inside 7 am to 4 pm: " + txt);
+  const late = opts.find((o) => o.v === "14:00"), early = opts.find((o) => o.v === "06:00");
+  for (const o of [late, early]) {
+    if (o.off || !/confirm/i.test(o.t)) throw new Error("a time outside the trading hours should stay open as a request: " + JSON.stringify(o));
+  }
   await noOverflowAndNoJunk("Pick with availability");
   await page.waitForTimeout(1200);
   await page.screenshot({ path: shots + "/dash-5-availability.png", fullPage: true });
@@ -245,6 +249,39 @@ await check("opening a good link while the store is down says the store is not a
   await page.click("#reload");
   await page.waitForFunction(() => /Your morning is held|Book this morning/.test(document.getElementById("app").innerText));
 }));
+
+await check("a confirmed booking shows the credits taken, the discount and what to pay", async () => {
+  await page.goto(url + "/#k=" + MOCK_TWO_TOKEN + "&v=booking&b=bk-l1");
+  await page.waitForSelector(".ticket");
+  const txt = await page.innerText("#app");
+  for (const want of ["$557", "10% off your first morning", "2 free hours (Team Captain)", "$62", "$619"]) {
+    if (!txt.includes(want)) throw new Error("missing: " + want + " in " + txt.slice(0, 500));
+  }
+  await noOverflowAndNoJunk("Booking with credits");
+  await page.waitForTimeout(1200);
+  await page.screenshot({ path: shots + "/dash-7-credits.png", fullPage: true });
+});
+
+await check("the Refer screen states the offer for both sides, with progress toward the free hours", async () => {
+  await page.goto(url + "/#k=" + MOCK_CLIENT_TOKEN + "&v=refer");
+  await page.waitForSelector("#share");
+  const txt = await page.innerText("#app");
+  for (const want of ["Your friend gets 10% off their first morning", "third friend", "2 free hours", "1 of 3"]) {
+    if (!txt.includes(want)) throw new Error("missing: " + want + " in " + txt.slice(0, 600));
+  }
+  if ((await page.$$("#app .dots span.on")).length !== 1) throw new Error("progress dots should show 1 done");
+  await noOverflowAndNoJunk("Refer with offer");
+  await page.waitForTimeout(1200);
+  await page.screenshot({ path: shots + "/dash-8-refer-offer.png", fullPage: true });
+});
+
+await check("a client with credits waiting sees them on the landing screen, in the store's words", async () => {
+  db.tables.holds = db.tables.holds.filter((h) => h.clientToken !== MOCK_CLIENT_TOKEN);
+  await page.goto(url + "/#k=" + MOCK_CLIENT_TOKEN);
+  await page.waitForSelector("#book");
+  const txt = await page.innerText("#app");
+  if (!txt.includes("Waiting for you") || !txt.includes("2 free hours on your next booking (Team Captain)")) throw new Error("credits not shown: " + txt.slice(0, 500));
+});
 
 await check("the Refer screen says when a friend's reward unlocks, and lists the credit that is waiting", async () => {
   await page.goto(url + "/#k=" + MOCK_CLIENT_TOKEN + "&v=refer");
