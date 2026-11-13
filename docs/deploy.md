@@ -4,7 +4,7 @@ Nothing here is live. Each step below is a click or a yes from Sam. Do them in t
 
 ## 1. Store (Apps Script, one project, its own Sheet)
 
-1. Create a new Google Sheet "Wander dashboard store". Copy its ID from the URL.
+1. Create a new Google Sheet "Wander Customer Portal store". Copy its ID from the URL.
 2. In Apps Script (from that Sheet: Extensions > Apps Script), create a new project. Paste in `store/Adapter.gs`, `rules.js` and `store/logic.js`, as three files in that order.
 3. Project Settings > Script properties:
    - `STORE_SHEET_ID` = the Sheet ID.
