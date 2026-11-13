@@ -16,11 +16,11 @@ var StoreLogic = (function () {
   var PEOPLE_STEP_MIN = 1;
 
   var TABLES = {
-    clients: ["token", "firstName", "referralCode", "quote"],
+    clients: ["token", "firstName", "referralCode", "quote", "referrals"],
     events: ["time", "type", "data"],
     bookings: ["id", "clientToken", "status", "date", "startTime", "endTime", "people", "hours", "address", "total", "outOfHoursFee", "requestId"],
     busy: ["date", "startTime", "endTime"],
-    holds: ["requestId", "id", "clientToken", "date", "startTime", "endTime", "people", "hours", "address", "createdAt"],
+    holds: ["requestId", "id", "clientToken", "date", "startTime", "endTime", "people", "hours", "address", "total", "outOfHoursFee", "createdAt"],
     queue: ["id", "kind", "receivedAt", "clientToken", "payload", "acked"],
     credits: ["clientToken", "kind", "label", "expiresAt"],
     meta: ["key", "value"],
@@ -66,6 +66,17 @@ var StoreLogic = (function () {
     return { value: out };
   }
 
+  // Referrals are shown to the referrer by first name and a status, nothing else.
+  function cleanReferrals(list) {
+    if (!Array.isArray(list)) return [];
+    var out = [];
+    list.forEach(function (r) {
+      if (!r || (r.status !== "booked" && r.status !== "completed")) return;
+      out.push({ firstName: clean(r.firstName, 40), status: r.status });
+    });
+    return out;
+  }
+
   function metaValue(db, key) {
     var rows = db.read("meta");
     for (var i = 0; i < rows.length; i++) if (rows[i].key === key) return rows[i].value;
@@ -98,6 +109,12 @@ var StoreLogic = (function () {
     return out;
   }
 
+  // The price the client was shown, without the out-of-hours fee. Coffee Van re-prices on import; this is what the page
+  // shows until it publishes.
+  function shownBase(fields) {
+    return fields.shownTotal === null || fields.shownTotal === undefined ? 0 : Math.max(0, Number(fields.shownTotal) - Number(fields.shownFee || 0));
+  }
+
   function copyFor(outcome, replyWithinHours, startTime) {
     if (outcome === "held") return "Held. We will confirm within " + replyWithinHours + " hours.";
     if (outcome === "applied") return "Done. Your morning now starts at " + startTime + ".";
@@ -117,8 +134,9 @@ var StoreLogic = (function () {
     };
   }
 
-  // Coffee Van publishes its state. The snapshot replaces clients, bookings, busy times and credits, and drops any hold
-  // whose request now appears as a booking. It is safe to send again.
+  // Coffee Van publishes its state. The snapshot replaces clients, bookings, busy times and credits, and drops a hold when
+  // its request now appears as a booking, when Coffee Van has acknowledged it (it was booked, which this snapshot lists, or
+  // refused, which frees the slot), or when its date has passed. It is safe to send again.
   function publish(db, appToken, snapshot, now) {
     if (!appTokenOk(db, appToken)) return { ok: false, error: "not-allowed" };
     if (!snapshot || typeof snapshot !== "object" || !isDate(String(snapshot.asOf || "").slice(0, 10))) return { ok: false, error: "bad-snapshot" };
@@ -127,6 +145,7 @@ var StoreLogic = (function () {
         return {
           token: clean(c.token, 200), firstName: clean(c.firstName, 40), referralCode: clean(c.referralCode, 12),
           quote: c.quote ? JSON.stringify(c.quote) : "",
+          referrals: JSON.stringify(cleanReferrals(c.referrals)),
         };
       });
       var bookings = (snapshot.bookings || []).map(function (b) {
@@ -147,7 +166,10 @@ var StoreLogic = (function () {
       db.write("bookings", bookings);
       db.write("busy", busy);
       db.write("credits", credits);
-      db.write("holds", db.read("holds").filter(function (h) { return !published[h.requestId]; }));
+      var acked = {};
+      db.read("queue").forEach(function (q) { if (String(q.acked) === "yes") acked[q.id] = true; });
+      var today = String(snapshot.asOf).slice(0, 10); // the UTC date is never later than the Sydney date: a hold is only dropped once its day is certainly past
+      db.write("holds", db.read("holds").filter(function (h) { return !published[h.requestId] && !acked[h.requestId] && h.date >= today; }));
       setMeta(db, "asOf", clean(snapshot.asOf, 40));
       setMeta(db, "publishedAt", now);
       if (snapshot.prices) setMeta(db, "prices", JSON.stringify(snapshot.prices));
@@ -197,11 +219,21 @@ var StoreLogic = (function () {
     var asOf = metaValue(db, "asOf");
     var quote = null;
     try { quote = client.quote ? JSON.parse(client.quote) : null; } catch (e) { quote = null; }
+    var referrals = [];
+    try { referrals = client.referrals ? cleanReferrals(JSON.parse(client.referrals)) : []; } catch (e) { referrals = []; }
     var bookings = db.read("bookings").filter(function (b) { return b.clientToken === token; }).map(function (b) {
       return {
         id: b.id, status: b.status, date: b.date, startTime: b.startTime, endTime: b.endTime, people: b.people, hours: b.hours,
         address: b.address, total: b.total, outOfHoursFee: b.outOfHoursFee,
       };
+    });
+    // A date this client has just held, or a change just applied, shows at once; Coffee Van's next publish replaces it.
+    db.read("holds").filter(function (h) { return h.clientToken === token; }).forEach(function (h) {
+      var at = -1;
+      for (var i = 0; i < bookings.length; i++) if (bookings[i].id === h.id) at = i;
+      var moved = { date: h.date, startTime: h.startTime, endTime: h.endTime, people: Number(h.people), hours: Number(h.hours), address: h.address };
+      if (at >= 0) bookings[at] = Object.assign({}, bookings[at], moved);
+      else bookings.push(Object.assign({ id: h.id, status: "held", total: Number(h.total || 0), outOfHoursFee: Number(h.outOfHoursFee || 0) }, moved));
     });
     var pendingItems = db.read("queue").filter(function (q) { return q.clientToken === token && String(q.acked) !== "yes"; }).map(function (q) {
       return { id: q.id, kind: q.kind, replyWithinHours: 24 };
@@ -216,6 +248,7 @@ var StoreLogic = (function () {
       stale: WanderRules.isStale(asOf, now),
       client: { firstName: client.firstName, referralCode: client.referralCode },
       quote: quote,
+      referrals: referrals,
       bookings: bookings,
       pending: pendingItems,
       credits: credits,
@@ -265,7 +298,7 @@ var StoreLogic = (function () {
           db.append("holds", {
             requestId: requestId, id: holdId, clientToken: client.token, date: fields.date, startTime: fields.startTime,
             endTime: endTimeFor(fields.startTime, fields.hours), people: fields.people, hours: fields.hours,
-            address: fields.address, createdAt: now,
+            address: fields.address, total: shownBase(fields), outOfHoursFee: Number(fields.shownFee || 0), createdAt: now,
           });
           response.bookingId = holdId;
         }
@@ -286,7 +319,7 @@ var StoreLogic = (function () {
           db.append("holds", {
             requestId: requestId, id: booking.id, clientToken: client.token, date: fields.date, startTime: fields.startTime,
             endTime: endTimeFor(fields.startTime, fields.hours), people: fields.people, hours: fields.hours,
-            address: fields.address, createdAt: now,
+            address: fields.address, total: shownBase(fields), outOfHoursFee: Number(fields.shownFee || 0), createdAt: now,
           });
         }
         fields.decision = change.decision;
@@ -314,6 +347,75 @@ var StoreLogic = (function () {
     });
   }
 
+  var AVAILABILITY_DAYS = 60;
+  var FIRST_START_MINUTES = 6 * 60;
+  var LAST_START_MINUTES = 18 * 60;
+  var START_STEP_MINUTES = 30;
+  var ALERT_EVERY_MS = 60 * 60 * 1000;
+
+  function startTimes() {
+    var out = [];
+    for (var m = FIRST_START_MINUTES; m <= LAST_START_MINUTES; m += START_STEP_MINUTES) {
+      out.push((m < 600 ? "0" : "") + Math.floor(m / 60) + ":" + (m % 60 === 0 ? "00" : "30"));
+    }
+    return out;
+  }
+
+  // The start times a client could hold right now, each one put through the same rules as a hold (decideHold, against the
+  // published busy times and the holds still waiting), so a time listed free is held when the client taps it. For a change,
+  // the client's own booking is left out exactly as a change leaves it out. When availability is stale nothing is claimed free.
+  function availability(db, body, now) {
+    var client = clientBy(db, body && body.k);
+    if (!client) return { ok: false, error: "not-found" };
+    var hours = Number(body.hours);
+    if (CATERING_HOURS.indexOf(hours) < 0) return { ok: false, error: "bad-hours" };
+    var asOf = metaValue(db, "asOf");
+    var today = WanderRules.sydneyDate(now);
+    var out = {
+      ok: true, asOf: asOf, stale: WanderRules.isStale(asOf, now), hours: hours,
+      window: { from: today, through: WanderRules.addDays(today, AVAILABILITY_DAYS - 1) }, days: {},
+    };
+    if (out.stale || !today) return out;
+    var own = null;
+    if (body.bookingId) {
+      own = db.read("bookings").filter(function (b) { return b.id === clean(body.bookingId, 80) && b.clientToken === client.token; })[0] || null;
+    }
+    var byDate = {};
+    function add(date, row) { (byDate[date] = byDate[date] || []).push(row); }
+    db.read("busy").forEach(function (b) {
+      if (own && b.date === own.date && b.startTime === own.startTime) return;
+      add(b.date, { date: b.date, startTime: b.startTime, endTime: b.endTime });
+    });
+    db.read("holds").forEach(function (h) { add(h.date, { date: h.date, startTime: h.startTime, endTime: h.endTime }); });
+    var times = startTimes();
+    for (var i = 0; i < AVAILABILITY_DAYS; i++) {
+      var date = WanderRules.addDays(today, i);
+      var others = byDate[date] || [];
+      var free = times.filter(function (t) {
+        return WanderRules.decideHold({ date: date, startTime: t, hours: hours, travelKm: 0 }, others, asOf, now).decision === "held";
+      });
+      if (free.length) out.days[date] = free;
+    }
+    return out;
+  }
+
+  // A store error is mailed to its owner at most once an hour. `lastAlertAt` is kept by the caller (Script Properties, so it
+  // works even when the Sheet itself is what failed). The mail names the action and the error, never a client or a request.
+  function failureAlert(lastAlertAt, action, message, now) {
+    var last = WanderRules.instantOf(lastAlertAt);
+    var at = WanderRules.instantOf(now);
+    if (!Number.isNaN(last) && !Number.isNaN(at) && at - last < ALERT_EVERY_MS) return { send: false, lastAlertAt: lastAlertAt };
+    return {
+      send: true,
+      lastAlertAt: now,
+      subject: "Wander Customer Portal: the store hit an error",
+      body: "The portal's store hit an error while handling \"" + clean(action, 20) + "\" at " + clean(now, 40) + ".\n\n" +
+        "Error: " + clean(message, 300) + "\n\n" +
+        "Clients who meet this are told their request could not be confirmed, and are offered a retry, a text and a call. " +
+        "Open the Apps Script project's Executions page for the detail. You will get at most one of these an hour.",
+    };
+  }
+
   var EVENT_TYPES = ["view", "cta", "upgrade-shown", "upgrade-accepted", "upgrade-declined", "booked", "calendar", "referral-shared"];
 
   // Funnel events for Sam's conversion view. Nothing identifying is stored beyond the client token's presence.
@@ -331,6 +433,7 @@ var StoreLogic = (function () {
     TABLES: TABLES, CONTRACT_VERSION: CONTRACT_VERSION, EVENT_TYPES: EVENT_TYPES,
     event: event,
     health: health, publish: publish, pending: pending, ack: ack, prices: prices, session: session, request: request,
+    availability: availability, failureAlert: failureAlert,
     endTimeFor: endTimeFor, readRequest: readRequest,
   };
 })();

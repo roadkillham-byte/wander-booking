@@ -51,6 +51,22 @@ var WanderRules = (function () {
     return sydneyEpoch(m[1], m[2]);
   }
 
+  // The Sydney calendar date ("YYYY-MM-DD") of an instant.
+  function sydneyDate(iso) {
+    const at = instantOf(iso);
+    if (Number.isNaN(at)) return "";
+    const p = {};
+    for (const part of partsFormat.formatToParts(new Date(at))) p[part.type] = part.value;
+    return p.year + "-" + p.month + "-" + p.day;
+  }
+
+  // A calendar date moved by whole days. UTC arithmetic only, so no zone can shift it.
+  function addDays(date, n) {
+    const d = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date || "");
+    if (!d) return "";
+    return new Date(Date.UTC(Number(d[1]), Number(d[2]) - 1, Number(d[3])) + Number(n) * 86400000).toISOString().slice(0, 10);
+  }
+
   // Hours from `nowIso` to the booking's start (Sydney).
   function noticeHours(nowIso, date, startTime) {
     return (sydneyEpoch(date, startTime || DEFAULT_START) - instantOf(nowIso)) / 3600000;
@@ -97,12 +113,13 @@ var WanderRules = (function () {
     return { decision: reasons.length === 0 ? "held" : "requested", reasons };
   }
 
-  // A change to a confirmed booking is applied at once when the new slot is free, the address is inside free travel,
-  // and the notice is 24 hours or more. Otherwise it is asked of Sam.
+  // A change to a confirmed booking is applied at once when the new slot is free, the address is inside free travel, and
+  // both the booking and the new time are 24 hours or more away. Otherwise it is asked of Sam.
   function decideChange(booking, change, others, asOfIso, nowIso) {
     const reasons = [];
     if (isStale(asOfIso, nowIso)) reasons.push("availability is out of date");
     if (noticeHours(nowIso, booking.date, booking.startTime) < NOTICE_HOURS) reasons.push("less than 24 hours' notice");
+    if (noticeHours(nowIso, change.date, change.startTime) < NOTICE_HOURS) reasons.push("the new time is less than 24 hours away");
     if (!slotIsFree(change.date, change.startTime, change.hours, others)) reasons.push("the new time is not free on the van");
     if (Number(change.travelKm || 0) > TRAVEL_FREE_KM_ONE_WAY) reasons.push("the address is beyond free travel");
     return { decision: reasons.length === 0 ? "applied" : "requested", reasons };
@@ -115,7 +132,21 @@ var WanderRules = (function () {
     return { decision: "requested", reasons };
   }
 
+  // "Same again": the last completed morning's date plus 28 days, moved forward a week at a time until it is at least
+  // 3 days after today. It keeps the weekday of the last morning. UTC date arithmetic only, so no zone can shift it.
+  function sameAgainDate(lastDateIso, todayIso) {
+    const last = /^(\d{4})-(\d{2})-(\d{2})$/.exec(lastDateIso || "");
+    const today = /^(\d{4})-(\d{2})-(\d{2})$/.exec(todayIso || "");
+    if (!last || !today) return "";
+    const DAY = 86400000;
+    let date = Date.UTC(Number(last[1]), Number(last[2]) - 1, Number(last[3])) + 28 * DAY;
+    const floor = Date.UTC(Number(today[1]), Number(today[2]) - 1, Number(today[3])) + 3 * DAY;
+    while (date < floor) date += 7 * DAY;
+    return new Date(date).toISOString().slice(0, 10);
+  }
+
   return {
+    sameAgainDate, sydneyDate, addDays,
     ZONE, DEFAULT_START, TRAVEL_FREE_KM_ONE_WAY, NOTICE_HOURS, VAN_GAP_MINUTES, STALE_AFTER_HOURS,
     sydneyEpoch, instantOf, noticeHours, replyWithinHours, slotIsFree, isStale, decideHold, decideChange, decideCancel,
   };

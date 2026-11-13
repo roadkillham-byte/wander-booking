@@ -89,3 +89,49 @@ test("decideCancel always asks Sam to confirm the credit, and records whether th
     reasons: ["less than 24 hours' notice"],
   });
 });
+
+test("sameAgainDate adds 28 days to a recent date", () => {
+  assert.equal(R.sameAgainDate("2026-10-10", "2026-10-12"), "2026-11-07");
+});
+
+test("sameAgainDate moves forward a week at a time until at least 3 days after today", () => {
+  assert.equal(R.sameAgainDate("2026-10-10", "2026-11-13"), "2026-11-21");
+  assert.equal(R.sameAgainDate("2026-10-10", "2026-11-04"), "2026-11-07"); // exactly 3 days after today stands
+  assert.equal(R.sameAgainDate("2026-10-10", "2026-11-05"), "2026-11-14");
+});
+
+test("sameAgainDate keeps the weekday of the last morning", () => {
+  const weekday = (iso) => new Date(iso + "T12:00:00Z").getUTCDay();
+  for (const today of ["2026-10-12", "2026-11-13", "2027-01-02"]) {
+    assert.equal(weekday(R.sameAgainDate("2026-10-10", today)), weekday("2026-10-10"));
+  }
+});
+
+test("sameAgainDate returns an empty string for a bad date", () => {
+  assert.equal(R.sameAgainDate("", "2026-11-13"), "");
+  assert.equal(R.sameAgainDate("2026-10-10", "soon"), "");
+});
+
+test("sydneyDate gives the Sydney calendar date of an instant, either side of midnight and the daylight saving change", () => {
+  assert.equal(R.sydneyDate("2026-12-01T07:00:00+11:00"), "2026-12-01");
+  assert.equal(R.sydneyDate("2026-12-01T13:30:00Z"), "2026-12-02"); // 00:30 next day in Sydney
+  assert.equal(R.sydneyDate("2026-12-01T12:30:00Z"), "2026-12-01"); // 23:30 in Sydney
+  assert.equal(R.sydneyDate("2026-04-04T15:30:00Z"), "2026-04-05"); // 02:30 AEDT, the day daylight saving ends
+  assert.equal(R.sydneyDate("nonsense"), "");
+});
+
+test("addDays steps a calendar date by whole days across month, year and leap ends", () => {
+  assert.equal(R.addDays("2026-12-30", 3), "2027-01-02");
+  assert.equal(R.addDays("2028-02-28", 1), "2028-02-29");
+  assert.equal(R.addDays("2026-03-01", -1), "2026-02-28");
+  assert.equal(R.addDays("bad", 1), "");
+});
+
+test("decideChange asks Sam when the NEW time is under 24 hours away, even if the booking itself is a week off", () => {
+  const booking = { date: "2026-12-08", startTime: "09:00" };
+  const soon = R.decideChange(booking, { date: "2026-12-02", startTime: "06:00", hours: 3, travelKm: 0 }, [], "2026-12-01T06:00:00", "2026-12-01T07:00:00");
+  assert.equal(soon.decision, "requested");
+  assert.ok(soon.reasons.includes("the new time is less than 24 hours away"));
+  const fine = R.decideChange(booking, { date: "2026-12-02", startTime: "07:00", hours: 3, travelKm: 0 }, [], "2026-12-01T06:00:00", "2026-12-01T07:00:00");
+  assert.equal(fine.decision, "applied", "exactly 24 hours stands");
+});

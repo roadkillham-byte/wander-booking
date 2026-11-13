@@ -1,4 +1,4 @@
-# Wander client dashboard
+# Wander Customer Portal
 
 First slice: `rules.js` (pure rules, `node --test rules.test.js`) and the Held screen (`index.html`, sample data in `fixtures/held-data.js`).
 

@@ -1,4 +1,4 @@
-# Wander dashboard contract (version 1)
+# Wander Customer Portal contract (version 1)
 
 Three sides build against this file: the dashboard front end (`app.js`, `api.js`), the store (`store/logic.js`, Apps Script
 adapter in `store/Adapter.gs`) and Coffee Van's sync (`server/dashboardSync.mjs` in the Coffee Van repo). Fixtures in
@@ -8,8 +8,15 @@ adapter in `store/Adapter.gs`) and Coffee Van's sync (`server/dashboardSync.mjs`
 
 - Times: Australia/Sydney local wall-clock. Dates `YYYY-MM-DD`, times `HH:MM` (24-hour). Never trust a browser or server zone.
 - Money: whole dollars, GST included, as Coffee Van quotes it. The dashboard never computes a price.
-- Every response has `ok` (boolean). A failure is `{ok:false, error:"<short code>"}`. The client never sees an error screen:
-  the front end falls back to the "we will text you" copy.
+- Every response has `ok` (boolean). A failure is `{ok:false, error:"<short code>"}`. A rule miss is never a failure: it is a
+  `requested` outcome. Two kinds of real failure, and the page tells the client which one it is:
+  - The store could not be reached or could not answer (`network` is made by the page when the call fails or the reply is not
+    JSON; `store-error` is sent by the store when it caught its own exception, a lock timeout included). The page says plainly that
+    it could not confirm the request, keeps the client's details on screen, and offers **Try again** (it resends the **same
+    `requestId`**, so a request that did arrive is not held twice) plus a pre-filled text and a phone call. It never says
+    "we will text you", because nobody knows about the request.
+  - The store answered and refused the request (`bad-date-or-time`, `bad-people`, `bad-hours`, `no-request-id`, `unknown-kind`,
+    `not-found`). The page asks the client to check the details and keeps the form.
 - Client tokens are long random values, carried in the page URL fragment (`#k=TOKEN`), never in query strings the server logs.
   A token returns only that client's data. Referral data is first names only.
 - Requests are sent as `text/plain` JSON (no CORS preflight), as the booking intake already does. Anything carrying a token is a POST.
@@ -20,12 +27,27 @@ adapter in `store/Adapter.gs`) and Coffee Van's sync (`server/dashboardSync.mjs`
 `POST ?action=session` with body `{k: TOKEN}` → see `fixtures/contract/session.json`. POST keeps tokens out of URLs and server logs.
 
 - `client`: `{firstName, referralCode}`.
+- `referrals`: `[{firstName, status: "booked"|"completed"}]`, the people this client referred, by first name only. Nothing else about them.
+  `booked` means the friend's booking is **confirmed**; a form quote or a hold still waiting for Sam is not listed.
 - `bookings`: each `{id, status, date, startTime, endTime, people, hours, address, total, outOfHoursFee}`.
   `status` is one of `held`, `confirmed`, `completed`, `cancelled`, `requested`.
 - `pending`: requests waiting for Sam, `{id, kind, replyWithinHours}`.
 - `credits`: `{kind: "returning"|"referral", label, expiresAt}`. Labels are the words the page shows.
 - `pack`: `null`, or `{mornings: 4, used, left, bonusHours, expiresAt}`.
 - `asOf`, `stale`.
+
+## Availability (client, token)
+
+`POST ?action=availability` with body `{k, hours, bookingId?}` → see `fixtures/contract/availability.json`. The start times a
+client could hold **right now**: the store runs each one through the same rules a hold uses (notice of 24 hours or more, a free
+slot with a 60-minute gap against the published busy times **and** the holds still waiting), so a time listed free is held
+when the client taps it. `bookingId` leaves that client's own booking out of the busy times, for a change.
+
+- `days`: `{"YYYY-MM-DD": ["06:00", ...]}`, only days with at least one free start. A day inside `window` and not listed is full.
+- `window`: `{from, through}`, the dates the answer covers (60 days from today, Sydney).
+- `stale: true` when availability is older than 6 hours: `days` is `{}` and the page claims nothing is free; a pick is then a request.
+- Starts are 06:00 to 18:00 every 30 minutes. The van's own working days and hours are not in the store yet, so "free" means "free on
+  the van": a held time still waits for Sam to confirm.
 
 ## Prices (client-independent)
 
@@ -60,14 +82,23 @@ still waiting in the store, under a lock, so two clients cannot hold the same sl
 ## Coffee Van pull and ack (app token)
 
 `POST ?action=pending` with body `{k: APP_TOKEN}` → `{ok, items:[...]}`. Each item is one request with its `kind` and fields plus `clientToken`.
-Then `POST ?action=ack` with `{k, ids:[...]}` removes them from the queue. The store keeps a hold until a publish lists its
-`requestId`, so an ack never opens a gap on the van. See `fixtures/contract/pending.json` and `ack.json`.
+Then `POST ?action=ack` with `{k, ids:[...]}` removes them from the queue. A hold is dropped by the first publish **after** its
+ack (Coffee Van has by then turned the request into a booking, which the publish lists, or has refused it, which frees the
+slot), or by any publish that lists its `requestId`, or once its date has passed. Until then it keeps blocking the van, so an
+ack never opens a gap. See `fixtures/contract/pending.json` and `ack.json`.
 
 ## Coffee Van publish (app token)
 
 `POST ?action=publish` with `{k, snapshot}`. The snapshot replaces clients, bookings, busy times and credits; it is
 idempotent. `fixtures/contract/publish.json` is an example. Clients are keyed by `token` (minted by Coffee Van, emailed as the
-sign-in link). Bookings carry `requestId` when they came from the dashboard or the form.
+sign-in link). `clients[].referrals` has the shape above; the store keeps a first name (40 characters) and one of the two
+statuses, and drops everything else, including entries with any other status. Bookings carry `requestId` when they came from the dashboard or the form.
+
+## Store errors
+
+Every route of the store answers JSON, even when it throws: an exception is caught and answered `{ok:false, error:"store-error"}`
+(never an HTML error page). The store emails its owner about an error at most once an hour, with the action name and the error
+text only, no client data.
 
 ## Health
 
