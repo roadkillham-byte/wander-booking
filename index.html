@@ -106,6 +106,8 @@ h2.rule {
 }
 .go:focus-visible, .ticket .change:focus-visible, .talk:focus-visible, a:focus-visible { outline: 3px solid var(--forest); outline-offset: 3px; }
 .talk { display: block; text-align: center; margin: 14px 0 0; color: var(--forest); }
+.talk span { font-size: 0.95rem; }
+.talk .num { display: block; font-weight: normal; font-size: 1.25rem; margin-top: 2px; }
 
 ul.promises, ul.includes { padding-left: 1.2em; margin: 0; }
 ul.promises li, ul.includes li { margin: 6px 0; }
@@ -119,7 +121,8 @@ ul.promises li, ul.includes li { margin: 6px 0; }
 
 @media (max-width: 360px) {
   body { font-size: 18px; }
-  .ticket dl { grid-template-columns: 1fr; }
+  .ticket dl { grid-template-columns: 4.6rem 1fr auto; gap: 6px 8px; }
+  .ticket .change { font-size: 0.85rem; }
 }
 </style>
 </head>
@@ -155,7 +158,7 @@ ul.promises li, ul.includes li { margin: 6px 0; }
     </div>
     <p class="note" id="held-note"></p>
     <button type="button" class="go" id="book">Book this morning</button>
-    <a class="talk" href="tel:0492801058">Rather talk? We will ring you today: 0492 801 058</a>
+    <a class="talk" href="tel:0492801058">Rather talk? <span>We will ring you today</span> <b class="num">0492 801 058</b></a>
   </section>
 
   <section class="rise d2" aria-labelledby="promise-title">
