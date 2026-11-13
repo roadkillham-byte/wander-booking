@@ -113,6 +113,7 @@ export function startMock(port = 4180, { db = seededDb() } = {}) {
       if (body === null) return send(400, { ok: false, error: "bad-json" });
       if (action === "session") return send(200, S.session(db, body.k, now));
       if (action === "request") return send(200, S.request(db, body, now));
+      if (action === "availability") return send(200, S.availability(db, body, now));
       if (action === "event") return send(200, S.event(db, body, now));
       if (action === "pending") return send(200, S.pending(db, body.k));
       if (action === "ack") return send(200, S.ack(db, body.k, body.ids));

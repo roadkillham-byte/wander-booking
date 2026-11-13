@@ -59,28 +59,58 @@ function storeJson_(obj) {
 
 function storeNow_() { return new Date().toISOString(); }
 
+// Every route answers JSON, even when it throws (a lock timeout, a Sheet that cannot be opened): the page then knows the store
+// itself failed and says so, instead of getting an HTML error page. The owner is emailed, at most once an hour.
+function storeFailure_(action, err) {
+  try {
+    var props = PropertiesService.getScriptProperties();
+    var alert = StoreLogic.failureAlert(props.getProperty('LAST_ALERT_AT') || '', action, String(err && err.message || err), storeNow_());
+    if (alert.send) {
+      props.setProperty('LAST_ALERT_AT', alert.lastAlertAt);
+      MailApp.sendEmail(Session.getEffectiveUser().getEmail(), alert.subject, alert.body);
+    }
+  } catch (ignored) { /* the answer below matters more than the mail */ }
+  return storeJson_({ ok: false, error: 'store-error' });
+}
+
 // GET: health and the public prices. Everything with a token is a POST.
 function doGet(e) {
   var action = (e && e.parameter && e.parameter.action) || '';
-  var db = storeDb_();
-  if (action === 'health') return storeJson_(StoreLogic.health(db, storeNow_()));
-  if (action === 'prices') return storeJson_(StoreLogic.prices(db));
-  return storeJson_({ ok: false, error: 'unknown-action' });
+  try {
+    var db = storeDb_();
+    if (action === 'health') return storeJson_(StoreLogic.health(db, storeNow_()));
+    if (action === 'prices') return storeJson_(StoreLogic.prices(db));
+    return storeJson_({ ok: false, error: 'unknown-action' });
+  } catch (err) {
+    return storeFailure_(action || 'get', err);
+  }
 }
 
-// POST (text/plain JSON body): session, request, publish, pending, ack.
+// POST (text/plain JSON body): session, request, availability, event, publish, pending, ack.
 function doPost(e) {
   var action = (e && e.parameter && e.parameter.action) || '';
   var body;
   try { body = JSON.parse((e && e.postData && e.postData.contents) || '{}'); } catch (err) { return storeJson_({ ok: false, error: 'bad-json' }); }
-  var db = storeDb_();
-  var now = storeNow_();
-  if (action === 'session') return storeJson_(StoreLogic.session(db, body.k, now));
-  if (action === 'request') return storeJson_(StoreLogic.request(db, body, now));
-  if (action === 'publish') return storeJson_(StoreLogic.publish(db, body.k, body.snapshot, now));
-  if (action === 'pending') return storeJson_(StoreLogic.pending(db, body.k));
-  if (action === 'ack') return storeJson_(StoreLogic.ack(db, body.k, body.ids));
-  return storeJson_({ ok: false, error: 'unknown-action' });
+  try {
+    var db = storeDb_();
+    var now = storeNow_();
+    if (action === 'session') return storeJson_(StoreLogic.session(db, body.k, now));
+    if (action === 'request') return storeJson_(StoreLogic.request(db, body, now));
+    if (action === 'availability') return storeJson_(StoreLogic.availability(db, body, now));
+    if (action === 'event') return storeJson_(StoreLogic.event(db, body, now));
+    if (action === 'publish') return storeJson_(StoreLogic.publish(db, body.k, body.snapshot, now));
+    if (action === 'pending') return storeJson_(StoreLogic.pending(db, body.k));
+    if (action === 'ack') return storeJson_(StoreLogic.ack(db, body.k, body.ids));
+    return storeJson_({ ok: false, error: 'unknown-action' });
+  } catch (err) {
+    return storeFailure_(action || 'post', err);
+  }
+}
+
+// Run once from the Apps Script editor after deploying: Google asks you to allow the script to send you email, and a test
+// message arrives. After that a store error reaches you as an email (at most one an hour).
+function sendTestAlert_() {
+  MailApp.sendEmail(Session.getEffectiveUser().getEmail(), 'Wander Customer Portal: test alert', 'If you can read this, store errors will reach you here.');
 }
 
 // Run once from the Apps Script editor after deploying: checks that daylight saving time comes out right in this runtime.
