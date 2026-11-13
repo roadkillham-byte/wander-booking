@@ -1,4 +1,4 @@
-# Deploying the dashboard (for Sam: the steps that need you)
+# Deploying the Wander Customer Portal (for Sam: the steps that need you)
 
 Nothing here is live. Each step below is a click or a yes from Sam. Do them in this order.
 
@@ -10,13 +10,14 @@ Nothing here is live. Each step below is a click or a yes from Sam. Do them in t
    - `STORE_SHEET_ID` = the Sheet ID.
    - `APP_TOKEN` = 16+ random characters. Put the same value in Coffee Van's `~/.config/coffee-van/dashboard.env` as `DASHBOARD_APP_TOKEN` (Claude can write that file; never paste the value into chat or notes).
 4. Run `selfTestRules_` from the editor once. The log must say "rules OK in this runtime". If it does not, stop and tell Claude.
-5. Deploy > New deployment > Web app: execute as me, access "Anyone". Copy the `/exec` address.
+5. Run `sendTestAlert_` from the editor once. Google asks you to allow the script to send you email: allow it. A test message arrives. After that, any error in the store reaches you by email (at most one an hour), and clients meeting it are told their request could not be confirmed.
+6. Deploy > New deployment > Web app: execute as me, access "Anyone". Copy the `/exec` address.
 
 ## 2. Page (GitHub Pages, public)
 
 1. Decide: a public repo for the dashboard code (the page holds no client data; the booking page is already public).
-2. If yes, Claude creates `wander-dashboard` on GitHub and pushes `main`. Pages then serves it at `https://<owner>.github.io/wander-dashboard/`.
-3. Set `WANDER_API_URL` in `config.js` to the `/exec` address from step 1.5, and keep `WANDER_PAYMENTS = false`.
+2. If yes, make the `wander-customer-portal` repo public (it is private until you say) and turn on Pages. Pages then serves it at `https://<owner>.github.io/wander-customer-portal/`.
+3. Set `WANDER_API_URL` in `config.js` to the `/exec` address from step 1.6, and keep `WANDER_PAYMENTS = false`.
 
 ## 3. Coffee Van
 
