@@ -102,6 +102,15 @@ footer .social{margin:14px 0 0}
 .guar{margin:14px 0 8px;font-size:17px}
 .hp{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
 .details-h{margin-top:22px}
+.steps{margin:0 0 12px;padding:0;list-style:none;display:grid;gap:10px;counter-reset:st}
+.steps li{counter-increment:st;display:grid;grid-template-columns:34px 1fr;gap:10px;align-items:start;padding:0;border:0}
+.steps li::before{content:counter(st);position:static;width:auto;height:auto;border:0;transform:none;font-family:var(--hand);font-size:30px;line-height:1;color:var(--orange);text-align:center}
+.left{margin:6px 0 14px;font-size:20px;font-weight:700;color:var(--forest)}
+section.good details{border-top:1.5px dashed rgba(116,93,78,.45);padding:10px 0}
+section.good summary{cursor:pointer;font-weight:700;color:var(--forest)}
+section.good details p{margin:8px 0 0}
+.proof blockquote{margin:0 0 10px;padding-left:14px;border-left:5px solid var(--orange);font-size:19px}
+.proof cite{display:block;font-size:15px;color:var(--line);font-style:normal}
 #people{font-family:var(--hand);font-size:44px;line-height:1;text-align:center;padding:8px 12px}
 .inc{margin:14px 0 0;font-size:18px;font-weight:700;color:var(--forest)}
 .promise-line{margin:14px 0 4px;font-size:18px}
@@ -211,6 +220,20 @@ details.packwrap .pack{margin-top:6px}
           <li>Cancel 24 hours ahead? It all goes to your next booking.</li>
         </ul>
       </section>
+      <section class="card rise d4 good">
+        <h2>Good to <span>know</span></h2>
+        <p class="left" id="days-left" hidden></p>
+        <ol class="steps">
+          <li><span>Pick people and hours. Your price shows at once.</span></li>
+          <li><span>Send your details. We hold your date if it is free.</span></li>
+          <li><span>We ring you today to confirm. You pay after that.</span></li>
+        </ol>
+        <div class="proof" id="proof" hidden></div>
+        <details><summary>Is anything charged now?</summary><p>No. Nothing is charged before we confirm. Prices include GST.</p></details>
+        <details><summary>How far do you travel?</summary><p>Free within 50 km of our base. Further out, we confirm a small charge on the call.</p></details>
+        <details><summary>What if plans change?</summary><p>Change or cancel up to 24 hours ahead from your own page. The full amount goes to your next booking.</p></details>
+        <details><summary>How many people can you serve?</summary><p>From 1 to 500.</p></details>
+      </section>
     </div>
   </div>
 </main>
@@ -290,14 +313,31 @@ field("suburb").innerHTML = '<option value="">Pick your suburb</option>' +
 let openDays = null, openHoursFor = 0;
 const clock = (m) => String(Math.floor(m / 60)).padStart(2, "0") + ":" + (m % 60 === 0 ? "00" : "30");
 function usualTimes(h) { const out = []; for (let m = 7 * 60; m <= 16 * 60; m += 30) if (WanderRules.withinTradingHours(clock(m), h)) out.push(clock(m)); return out; }
+// How many of the next 30 days still have a free morning: real figures from the store, shown only when the store answers.
+function showDaysLeft() {
+  const el = field("days-left");
+  if (!openDays) { el.hidden = true; return; }
+  const today = todaySydney(), limit = WanderRules.addDays(today, 29);
+  const n = Object.keys(openDays).filter((d) => d >= today && d <= limit).length;
+  el.textContent = n + " of the next 30 days still have a free morning.";
+  el.hidden = false;
+}
+async function ensureOpenDays(h) {
+  if (!STORE_URL || openHoursFor === h) return;
+  openHoursFor = h; openDays = null;
+  try { const r = await postJson(STORE_URL + "?action=opentimes", { hours: h }, 12000); if (r && r.ok && !r.stale) openDays = r.days || {}; } catch (e) { openDays = null; }
+  showDaysLeft();
+}
+// Real words from real clients, set in config.js. Nothing shows until there are some.
+(window.WANDER_PROOF || []).slice(0, 3).forEach((q) => {
+  const box = field("proof"), b = document.createElement("blockquote"), c = document.createElement("cite");
+  b.textContent = "\u201c" + q.quote + "\u201d"; c.textContent = q.who; b.appendChild(c); box.appendChild(b); box.hidden = false;
+});
 async function refreshStartTimes() {
   const h = hours(), date = field("date").value, sel = field("start"), note = field("start-note");
   note.hidden = true;
   if (!date) { sel.innerHTML = '<option value="">Pick a date first</option>'; return; }
-  if (STORE_URL && openHoursFor !== h) {
-    openHoursFor = h; openDays = null;
-    try { const r = await postJson(STORE_URL + "?action=opentimes", { hours: h }, 12000); if (r && r.ok && !r.stale) openDays = r.days || {}; } catch (e) { openDays = null; }
-  }
+  await ensureOpenDays(h);
   let times = usualTimes(h), note_ = "";
   if (openDays && field("date").value === date) {
     times = openDays[date] || [];
@@ -310,7 +350,8 @@ async function refreshStartTimes() {
   if (note_) { note.textContent = note_; note.hidden = false; }
 }
 field("date").addEventListener("change", refreshStartTimes);
-document.querySelectorAll('input[name="hours"]').forEach((el) => el.addEventListener("change", () => { openHoursFor = 0; refreshStartTimes(); }));
+ensureOpenDays(hours());
+document.querySelectorAll('input[name="hours"]').forEach((el) => el.addEventListener("change", () => { openHoursFor = 0; ensureOpenDays(hours()); refreshStartTimes(); }));
 
 function bookingPayload() {
   const pkg = document.querySelector('input[name="package"]:checked');
