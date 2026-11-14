@@ -4,10 +4,12 @@ window.WANDER_FORM_URL = "https://docs.google.com/forms/d/e/1FAIpQLSdrma63Aq_JTX
 // quote and alerts Wander. Public address: nothing secret in it.
 window.WANDER_INTAKE_URL = "https://script.google.com/macros/s/AKfycbxdeorHui4vgW2oQXYC8bS4rmYHU_JXL_ARH6XizzqD8b3HzobVtB6ctgR-SFLpJfLeYw/exec";
 
-// Passive page tracking (see privacy.html and the data layer plan). Both stay empty until the Google script that
-// receives events is deployed with a SITE_KEY; until then the trackers do nothing at all.
-window.WANDER_EVENTS_URL = "";
-window.WANDER_SITE_KEY = "";
+// Where happy clients are asked to leave a review (a Google review link). Empty means no review ask is shown.
+window.WANDER_REVIEW_URL = "";
+// Passive page tracking (see privacy.html and the data layer plan). The events go to the same Google script as the
+// intake, whose SITE_KEY script property is the word below (not a secret). Without that match the endpoint accepts nothing.
+window.WANDER_EVENTS_URL = window.WANDER_INTAKE_URL;
+window.WANDER_SITE_KEY = "wander-site";
 // Honour Do Not Track and Global Privacy Control. Set to false only on Sam's say-so.
 window.WANDER_RESPECT_DNT = true;
 // Experiments: name -> variants. A visitor gets one variant each, kept, and it is reported with their first view.
