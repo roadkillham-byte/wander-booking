@@ -30,6 +30,15 @@ window.WANDER_PROOF = [];
 // One real client story for the "Good to know" box: [{ who: "Name, business", problem: "...", solution: "...", result: "...", price: "..." }]. Leave empty until there is one.
 window.WANDER_CASES = [];
 
-// A real coffee-only package to compare with, shown under the price once perPerson is set (dollars a head). When Wander costs more, the
-// page says the difference buys a full bowl for every person. wontInclude: what they usually leave out, e.g. ["food", "a babyccino for each child"]. Only list what is true.
-window.WANDER_ANCHOR = { label: "", perPerson: 0, wontInclude: [] };
+// Real packages to compare with, shown under the price as one line each (totals for this visitor's group). Sources and dates matter:
+// recheck before relying on them. Competitors are not named on the page.
+//   tiers: [{ guests, hours, price }]  the seller prices by package; the smallest tier covering the group is used.
+//   perPerson: a flat dollars-a-head price.   coffeeOnly: true  when Wander costs more, the line says the difference is a full bowl each.
+//   wontInclude: what they usually leave out, only if true.
+// Wander is shown only where it is cheaper, or where the other package is coffee-only.
+// Given by Sam on 15 Nov 2026 (madisonavecoffee): coffee packages 2 h/50 guests $300, 3 h/100 $550, 4 h/200 $1,000, full day/300 $1,500;
+// "Premium high tea" $45 a head.
+window.WANDER_ANCHORS = [
+  { label: "A coffee-only cart", coffeeOnly: true, tiers: [{ guests: 50, hours: 2, price: 300 }, { guests: 100, hours: 3, price: 550 }, { guests: 200, hours: 4, price: 1000 }, { guests: 300, hours: 24, price: 1500 }] },
+  { label: "A premium high tea package", perPerson: 45 },
+];
