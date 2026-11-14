@@ -35,8 +35,8 @@ main{position:relative;z-index:1;margin-top:-34px;padding-bottom:64px}
 h2{font-family:var(--hand);font-weight:400;font-size:34px;line-height:1;margin:0 0 14px;color:var(--forest)}
 h2 span{color:var(--orange)}
 label{display:block;font-size:16px;letter-spacing:.04em;text-transform:uppercase;color:var(--forest);margin:14px 0 6px}
-input,textarea{width:100%;font:inherit;color:var(--ink);background:#fff;border:2px solid var(--line);border-radius:10px;padding:12px 12px}
-input:focus,textarea:focus,button:focus-visible,.hours input:focus-visible+span{outline:3px solid var(--orange);outline-offset:2px}
+input,textarea,select{width:100%;font:inherit;color:var(--ink);background:#fff;border:2px solid var(--line);border-radius:10px;padding:12px 12px}
+input:focus,textarea:focus,select:focus,button:focus-visible,.hours input:focus-visible+span{outline:3px solid var(--orange);outline-offset:2px}
 textarea{min-height:76px;resize:vertical}
 .row{display:grid;gap:0 14px}
 @media(min-width:520px){.row{grid-template-columns:1fr 1fr}}
@@ -160,6 +160,10 @@ footer a{color:var(--forest)}
         <div><label for="date">Date of your event</label><input id="date" name="date" type="date" required></div>
       </div>
       <label class="check"><input type="checkbox" id="offers"> I would like to hear about offers and credits from Wander Coffee Van. I can unsubscribe at any time.</label>
+      <div id="heard-wrap" hidden>
+        <label for="heard">How did you hear about us? (optional)</label>
+        <select id="heard" name="heard"><option value="">Choose one</option><option value="van">Saw the van</option><option value="flyer">A flyer</option><option value="instagram">Instagram</option><option value="friend">A friend</option><option value="search">Searching online</option><option value="other">Something else</option></select>
+      </div>
       <div class="hp" aria-hidden="true"><label>Leave this empty<input name="website" id="website" tabindex="-1" autocomplete="off"></label></div>
       <button type="submit" class="go" id="go">Email me my price and call me today</button>
       <p class="ref-note" id="ref-note" hidden>A friend sent you, so your first morning is 10% off. Send your details and we will thank them.</p>
@@ -200,6 +204,7 @@ footer a{color:var(--forest)}
 <script src="quote.js"></script>
 <script src="track.js"></script>
 <script src="referral.js"></script>
+<script src="source.js"></script>
 <script src="boot.js"></script>
 <script>
 // The price below is Wander's Catering Rate Card (quote.js). Requests go to Wander's booking intake (config.js), which
@@ -208,6 +213,9 @@ footer a{color:var(--forest)}
 // A friend's code from ?ref= (kept 30 days). It goes with the request, and the page says thank you.
 const referralCode = (() => { try { return window.WanderReferral.captureReferral(location.search, localStorage, Date.now()); } catch (err) { return null; } })();
 document.getElementById("ref-note").hidden = !referralCode;
+// Which door brought the visitor (first utm tag, 90 days). Untagged visitors are asked once, in one optional tap.
+const source = (() => { try { return window.WanderSource.captureSource(location.search, localStorage, Date.now()); } catch (err) { return null; } })();
+document.getElementById("heard-wrap").hidden = !!source || !!referralCode;
 const { quote, packPrice, packBonus } = window.WanderQuote;
 const peopleEl = document.getElementById("people"), msg = document.getElementById("msg"), go = document.getElementById("go");
 const hours = () => Number(document.querySelector('input[name="hours"]:checked').value);
@@ -245,6 +253,8 @@ function bookingPayload() {
     name: field("name").value.trim(), phone: field("phone").value.trim(), email: field("email").value.trim(),
     date: field("date").value, people: validPeople(), hours: hours(),
     package: pkg ? pkg.value : "Single morning", offers: field("offers").checked, referral: referralCode || "",
+    source: source ? source.source : (referralCode ? "referral" : ""), medium: source ? source.medium : (referralCode ? "referral" : ""),
+    campaign: source ? source.campaign : "", heard: field("heard").value,
   };
 }
 function bookingProblem(p) {
