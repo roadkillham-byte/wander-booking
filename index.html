@@ -109,6 +109,11 @@ footer .social{margin:14px 0 0}
 section.good details{border-top:1.5px dashed rgba(116,93,78,.45);padding:10px 0}
 section.good summary{cursor:pointer;font-weight:700;color:var(--forest)}
 section.good details p{margin:8px 0 0}
+.perhead{margin:6px 0 0;font-size:18px;font-weight:700;color:var(--forest)}
+.anchor{margin:4px 0 0;font-size:17px;color:var(--ink)}
+.case{margin:0 0 14px;padding:12px 14px;border:2px solid var(--forest);border-radius:12px;background:#fff9ef}
+.case h3{margin:0 0 6px;font-family:var(--hand);font-weight:400;font-size:26px;color:var(--forest)}
+.case p{margin:4px 0}
 .proof blockquote{margin:0 0 10px;padding-left:14px;border-left:5px solid var(--orange);font-size:19px}
 .proof cite{display:block;font-size:15px;color:var(--line);font-style:normal}
 #people{font-family:var(--hand);font-size:44px;line-height:1;text-align:center;padding:8px 12px}
@@ -155,6 +160,8 @@ details.packwrap .pack{margin-top:6px}
         <div class="amt" id="amt">$619</div>
         <div class="sub" id="sub">20 people, 3 hours, including GST</div>
       </div>
+      <p class="perhead" id="perhead"></p>
+      <p class="anchor" id="anchor" hidden></p>
       <p class="inc">Any bowl · Unlimited drinks · Set-up included</p>
       <details class="packwrap"><summary>Four mornings? See the Office Club 4-Pack</summary>
       <div class="pack" id="pack">
@@ -222,6 +229,7 @@ details.packwrap .pack{margin-top:6px}
       </section>
       <section class="card rise d4 good">
         <h2>Good to <span>know</span></h2>
+        <div id="cases" hidden></div>
         <p class="left" id="days-left" hidden></p>
         <ol class="steps">
           <li><span>Pick people and hours. Your price shows at once.</span></li>
@@ -268,12 +276,23 @@ const peopleEl = document.getElementById("people"), msg = document.getElementByI
 const hours = () => Number(document.querySelector('input[name="hours"]:checked').value);
 const money = (n) => "$" + n.toLocaleString("en-AU");
 const hoursText = (h) => (h === 1 ? "1 hour" : h + " hours");
+const money2 = (v) => "$" + v.toFixed(2);
+// An honest comparison, only when Sam has put a real figure in config.js and Wander is the lower price.
+function showAnchor(n, h) {
+  const el = document.getElementById("anchor"), a = window.WANDER_ANCHOR || {};
+  const ours = n ? quote(n, h) / n : 0;
+  if (!(a.perPerson > 0) || !n || !(ours < a.perPerson)) { el.hidden = true; return; }
+  el.textContent = `${a.label || "Typical event coffee"}: about ${money2(a.perPerson)} a head. With us: ${money2(ours)}.`;
+  el.hidden = false;
+}
 function validPeople() { const n = Number(peopleEl.value); return Number.isInteger(n) && n >= 1 && n <= 500 ? n : null; }
 function showQuote() {
   const n = validPeople(), h = hours();
   const amtText = n ? money(quote(n, h)) : "$ ...";
   // The brand font has no dollar sign, so the currency symbol is set in the body font.
   document.getElementById("amt").innerHTML = amtText.replace(/^\$/, '<span class="cur">$</span>');
+  document.getElementById("perhead").textContent = n ? `That is ${money2(quote(n, h) / n)} a head, everything included.` : "";
+  showAnchor(n, h);
   document.getElementById("sub").textContent = n ? `${n} ${n === 1 ? "person" : "people"}, ${h} hours, including GST` : "Enter 1 to 500 people";
   if (!n) return;
   // The 4-Pack is four mornings at the length chosen, at list price, and longer mornings earn more bonus time.
@@ -289,6 +308,11 @@ function showQuote() {
     : `For ${n} ${n === 1 ? "person" : "people"} at ${h} hours a morning: ${money(pack)} either way, and the 4-Pack adds ${hoursText(bonus.hours)} of coffee time worth ${money(bonus.value)}. Nothing to lose.`;
 }
 document.addEventListener("input", showQuote); showQuote();
+// Choosing the 4-Pack opens its comparison; choosing a single morning folds it away.
+document.querySelectorAll('input[name="package"]').forEach((el) => el.addEventListener("change", () => {
+  const wrap = document.querySelector("details.packwrap");
+  if (wrap) wrap.open = document.querySelector('input[name="package"]:checked').value === "Office Club 4-Pack";
+}));
 const INTAKE_URL = window.WANDER_INTAKE_URL || "";
 const STORE_URL = window.WANDER_STORE_URL || "";
 const CALL_LINE = "Call us on 0492 801 058 and we will take it from there.";
@@ -310,7 +334,8 @@ field("suburb").innerHTML = '<option value="">Pick your suburb</option>' +
 
 // Start time: the times the van is really free that day, from the store. If the store is not answering, the usual times are
 // offered instead and the request is simply confirmed by us.
-let openDays = null, openHoursFor = 0;
+let openDays = null, openHoursFor = 0, openThrough = "";
+const niceDay = (d) => new Date(d + "T12:00:00+11:00").toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short", timeZone: "Australia/Sydney" });
 const clock = (m) => String(Math.floor(m / 60)).padStart(2, "0") + ":" + (m % 60 === 0 ? "00" : "30");
 function usualTimes(h) { const out = []; for (let m = 7 * 60; m <= 16 * 60; m += 30) if (WanderRules.withinTradingHours(clock(m), h)) out.push(clock(m)); return out; }
 // How many of the next 30 days still have a free morning: real figures from the store, shown only when the store answers.
@@ -325,9 +350,19 @@ function showDaysLeft() {
 async function ensureOpenDays(h) {
   if (!STORE_URL || openHoursFor === h) return;
   openHoursFor = h; openDays = null;
-  try { const r = await postJson(STORE_URL + "?action=opentimes", { hours: h }, 12000); if (r && r.ok && !r.stale) openDays = r.days || {}; } catch (e) { openDays = null; }
+  try { const r = await postJson(STORE_URL + "?action=opentimes", { hours: h }, 12000); if (r && r.ok && !r.stale) { openDays = r.days || {}; openThrough = (r.window && r.window.through) || ""; } } catch (e) { openDays = null; }
   showDaysLeft();
 }
+// A real client story, set in config.js: who, problem, solution, result, price. Nothing shows until there is one.
+(window.WANDER_CASES || []).slice(0, 2).forEach((c) => {
+  const box = field("cases"), d = document.createElement("div"), h = document.createElement("h3");
+  d.className = "case"; h.textContent = c.who || "How we helped"; d.appendChild(h);
+  [["The problem", c.problem], ["What we did", c.solution], ["The result", c.result], ["The price", c.price]].forEach(([k, v]) => {
+    if (!v) return; const p = document.createElement("p"), st = document.createElement("strong");
+    st.textContent = k + ": "; p.appendChild(st); p.appendChild(document.createTextNode(v)); d.appendChild(p);
+  });
+  box.appendChild(d); box.hidden = false;
+});
 // Real words from real clients, set in config.js. Nothing shows until there are some.
 (window.WANDER_PROOF || []).slice(0, 3).forEach((q) => {
   const box = field("proof"), b = document.createElement("blockquote"), c = document.createElement("cite");
@@ -339,9 +374,14 @@ async function refreshStartTimes() {
   if (!date) { sel.innerHTML = '<option value="">Pick a date first</option>'; return; }
   await ensureOpenDays(h);
   let times = usualTimes(h), note_ = "";
-  if (openDays && field("date").value === date) {
+  // What we say is only what the store knows: how many start times that day, or the nearest free day when it is full.
+  if (openDays && (!openThrough || date <= openThrough)) {
     times = openDays[date] || [];
-    if (times.length === 0) note_ = "No free times that day. Try another date, or send it anyway and we will confirm.";
+    if (times.length === 0) {
+      const next = Object.keys(openDays).filter((d) => d > date).sort()[0];
+      note_ = "That day is full." + (next ? " Nearest free day: " + niceDay(next) + "." : "") + " You can still send it and we will confirm.";
+    } else if (times.length <= 3) note_ = "Only " + times.length + " start time" + (times.length === 1 ? "" : "s") + " left that day.";
+    else note_ = times.length + " start times are free that day.";
   }
   if (times.length === 0) times = usualTimes(h);
   const keep = sel.value;

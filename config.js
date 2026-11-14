@@ -26,3 +26,9 @@ window.WANDER_EXPERIMENTS = {};
 
 // Real words from real clients, shown in the "Good to know" box once there are some: [{ quote: "...", who: "Name, business" }]. Leave empty until then.
 window.WANDER_PROOF = [];
+
+// One real client story for the "Good to know" box: [{ who: "Name, business", problem: "...", solution: "...", result: "...", price: "..." }]. Leave empty until there is one.
+window.WANDER_CASES = [];
+
+// A real price to compare with, shown under the quote only when Wander is cheaper: { label: "Typical event caterer", perPerson: 0 } (dollars a head).
+window.WANDER_ANCHOR = { label: "", perPerson: 0 };
