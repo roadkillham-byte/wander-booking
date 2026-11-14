@@ -87,7 +87,7 @@ Response: `{ok:true, outcome, replyWithinHours, message, bookingId?}`. `message`
 Examples: `fixtures/contract/request-hold.json` and its two responses.
 
 Rules applied by the store (shared logic, `rules.js`): notice of 24 hours or more, the whole booking inside the trading hours
-(every day, 07:00 to 16:00), slot free on the van with a 60-minute gap, address within 50 km. Any miss is `requested`, never an error. A hold is checked against published busy times **and** holds
+(every day, 07:00 to 16:00), slot free on the van with a 60-minute gap, address within 50 km (the page sends the `suburb` the client picked; the store works the distance out from it, or from the suburb named in `address`, and never trusts a distance sent by the page; an unknown place or "other" is `requested`). Any miss is `requested`, never an error. A hold is checked against published busy times **and** holds
 still waiting in the store, under a lock, so two clients cannot hold the same slot.
 
 ## Coffee Van pull and ack (app token)

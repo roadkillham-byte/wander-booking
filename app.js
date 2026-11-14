@@ -223,6 +223,13 @@
     var timeOptions = TIMES.map(function (t) {
       return '<option value="' + t + '"' + (seed.startTime === t ? " selected" : "") + ">" + esc(timeLabel(t, Number(seed.hours) || 3, false)) + "</option>";
     }).join("");
+    // The suburb says how far the van travels; the store works the distance out from it, the page never sends a number.
+    function suburbOptions(address) {
+      var chosen = WanderRules.suburbKeyFor(address || "");
+      return '<option value=""' + (chosen ? "" : " selected") + ">Pick your suburb</option>" +
+        WanderRules.SUBURBS.map(function (s) { return '<option value="' + s.key + '"' + (s.key === chosen ? " selected" : "") + ">" + esc(s.label) + "</option>"; }).join("") +
+        '<option value="other">Somewhere else</option>';
+    }
     var inner = '<section class="rise d1"><h2 class="rule">' + (mode === "change" ? "Change your morning" : "Pick your morning") + "</h2>" +
       '<form id="pick" class="stack">' +
       '<label>Date<input type="date" name="date" required value="' + esc(seed.date) + '"></label>' +
@@ -230,7 +237,8 @@
       '<label>Start<select name="startTime">' + timeOptions + "</select></label>" +
       '<label>People<input type="number" name="people" min="1" max="200" required value="' + esc(seed.people) + '"></label>' +
       '<fieldset><legend>Hours</legend>' + lengths + "</fieldset>" +
-      '<label>Where<input type="text" name="address" maxlength="200" value="' + esc(seed.address) + '" placeholder="Street and suburb"></label>' +
+      '<label>Suburb<select name="suburb" required>' + suburbOptions(seed.address) + "</select></label>" +
+      '<label>Where<input type="text" name="address" maxlength="200" value="' + esc(seed.address) + '" placeholder="Street address"></label>' +
       '<p class="price-line" id="pick-price" aria-live="polite"></p>' +
       '<button type="submit" class="go">Book this morning</button>' +
       "</form></section>";
@@ -582,8 +590,8 @@
         var f = pick;
         var people = Number(f.people.value), hours = Number(f.hours.value), start = f.startTime.value;
         var b = bookingForRoute();
-        state.lastHold = { date: f.date.value, startTime: start, people: people, hours: hours, address: f.address.value };
-        var body = { k: state.k, requestId: uid(), date: f.date.value, startTime: start, people: people, hours: hours, address: f.address.value,
+        state.lastHold = { date: f.date.value, startTime: start, people: people, hours: hours, address: f.address.value, suburb: f.suburb.value };
+        var body = { k: state.k, requestId: uid(), date: f.date.value, startTime: start, people: people, hours: hours, address: f.address.value, suburb: f.suburb.value,
           shownTotal: (quoteFor(people, hours) || 0) + feeFor(start, hours), shownFee: feeFor(start, hours) };
         if (state.route.v === "change" && b) { body.kind = "change"; body.bookingId = b.id; }
         else { body.kind = "hold"; }

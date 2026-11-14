@@ -33,7 +33,7 @@ function publish(db, over = {}) {
     ],
     bookings: [
       { id: "bk-101", clientToken: "TOKEN-ALEX-0000000000000001", status: "confirmed", date: "2026-12-05", startTime: "09:00", endTime: "12:00",
-        people: 20, hours: 3, address: "1 Main Street, Forster", total: 619, outOfHoursFee: 0, requestId: "" },
+        people: 20, hours: 3, address: "1 Main Street, Tea Gardens", total: 619, outOfHoursFee: 0, requestId: "" },
     ],
     busy: [{ date: "2026-12-05", startTime: "09:00", endTime: "12:00" }],
     credits: [{ clientToken: "TOKEN-ALEX-0000000000000001", kind: "referral", label: "10% off your next booking", expiresAt: "2027-11-13" }],
@@ -133,7 +133,7 @@ test("a change is applied when the slot is free, and only the owner can change a
   const db = makeDb();
   publish(db);
   const change = { k: "TOKEN-ALEX-0000000000000001", kind: "change", requestId: "req-c1", bookingId: "bk-101",
-    date: "2026-12-05", startTime: "10:00", people: 20, hours: 3, address: "1 Main Street, Forster" };
+    date: "2026-12-05", startTime: "10:00", people: 20, hours: 3, address: "1 Main Street, Tea Gardens" };
   // Notice is more than 24 hours (1 Dec to 5 Dec), and the slot only overlaps the booking itself.
   const done = S.request(db, change, NOW);
   assert.equal(done.outcome, "applied");
@@ -146,7 +146,7 @@ test("a change into a taken slot, or inside 24 hours, is requested rather than r
   const db = makeDb();
   publish(db, { busy: [{ date: "2026-12-05", startTime: "09:00", endTime: "12:00" }, { date: "2026-12-05", startTime: "14:00", endTime: "17:00" }] });
   const taken = S.request(db, { k: "TOKEN-ALEX-0000000000000001", kind: "change", requestId: "req-c3", bookingId: "bk-101",
-    date: "2026-12-05", startTime: "14:00", people: 20, hours: 3, address: "1 Main Street, Forster" }, NOW);
+    date: "2026-12-05", startTime: "14:00", people: 20, hours: 3, address: "1 Main Street, Tea Gardens" }, NOW);
   assert.equal(taken.outcome, "requested");
   assert.equal(taken.message, "Requested: we will text you within 24 hours to confirm this.");
 });
@@ -294,7 +294,7 @@ test("an applied change shows its new time on the booking until Coffee Van publi
   const db = makeDb();
   publish(db);
   const change = { k: "TOKEN-ALEX-0000000000000001", kind: "change", requestId: "req-v4", bookingId: "bk-101",
-    date: "2026-12-05", startTime: "10:00", people: 20, hours: 3, address: "1 Main Street, Forster" };
+    date: "2026-12-05", startTime: "10:00", people: 20, hours: 3, address: "1 Main Street, Tea Gardens" };
   assert.equal(S.request(db, change, NOW).outcome, "applied");
   const booking = S.session(db, "TOKEN-ALEX-0000000000000001", NOW).bookings.filter((b) => b.id === "bk-101");
   assert.equal(booking.length, 1);
@@ -409,7 +409,7 @@ test("a hold nobody has acknowledged survives a publish that does not list it", 
 test("a change the store applied and Coffee Van refused goes back to the original time, and the new slot is free", () => {
   const db = makeDb();
   publish(db);
-  const change = { k: ALEX, kind: "change", requestId: "req-c1", bookingId: "bk-101", date: "2026-12-19", startTime: "09:00", people: 20, hours: 3, address: "1 Main Street, Forster" };
+  const change = { k: ALEX, kind: "change", requestId: "req-c1", bookingId: "bk-101", date: "2026-12-19", startTime: "09:00", people: 20, hours: 3, address: "1 Main Street, Tea Gardens" };
   assert.equal(S.request(db, change, NOW).outcome, "applied");
   assert.equal(S.session(db, ALEX, NOW).bookings.filter((b) => b.id === "bk-101")[0].date, "2026-12-19");
   S.ack(db, APP, ["req-c1"]);
@@ -451,7 +451,7 @@ test("a time the store lists free for a change is applied when the client asks, 
     for (const time of TIMES) {
       const db = makeDb();
       publish(db);
-      const change = { k: ALEX, kind: "change", requestId: "probe", bookingId: "bk-101", date, startTime: time, people: 20, hours: 3, address: "1 Main Street, Forster" };
+      const change = { k: ALEX, kind: "change", requestId: "probe", bookingId: "bk-101", date, startTime: time, people: 20, hours: 3, address: "1 Main Street, Tea Gardens" };
       const outcome = S.request(db, change, NOW).outcome;
       assert.equal(outcome === "applied", listed.indexOf(time) >= 0, `${date} ${time}: listed=${listed.indexOf(time) >= 0}, outcome=${outcome}`);
     }
@@ -477,7 +477,7 @@ test("the credits Coffee Van applied to a booking, the amount due and the referr
   publish(db, {
     reward,
     bookings: [{ id: "bk-101", clientToken: ALEX, status: "confirmed", date: "2026-12-05", startTime: "09:00", endTime: "12:00", people: 20, hours: 3,
-      address: "1 Main Street, Forster", total: 619, outOfHoursFee: 0, requestId: "", discount: 62, amountDue: 557, bonusHours: 2,
+      address: "1 Main Street, Tea Gardens", total: 619, outOfHoursFee: 0, requestId: "", discount: 62, amountDue: 557, bonusHours: 2,
       creditsApplied: ["10% off your first morning", "2 free hours (Team Captain)"] }],
   });
   const view = S.session(db, ALEX, NOW);
@@ -613,4 +613,20 @@ test("a later publish replaces the old price pieces, and a smaller table leaves 
   publish(db, { prices: { asOf: FRESH, quotes: { 1: { 2: 10 } }, packs: {}, fees: {} } });
   assert.deepEqual(S.prices(db).quotes, { 1: { 2: 10 } });
   assert.ok(db.tables.meta.filter((r) => r.key.startsWith("prices")).every((r) => String(r.value).length <= 45000));
+});
+
+test("the store works out the distance itself: a far suburb is requested, and a client-sent distance of 0 changes nothing", () => {
+  const db = makeDb();
+  publish(db);
+  const far = { ...hold("TOKEN-ALEX-0000000000000001", "req-far", "2026-12-19", "09:00"), address: "5 Beach Road, Forster", travelKm: 0 };
+  assert.equal(S.request(db, far, NOW).outcome, "requested");
+  const near = { ...hold("TOKEN-ALEX-0000000000000001", "req-near", "2026-12-19", "09:00"), address: "5 Beach Road", suburb: "tea-gardens", travelKm: 500 };
+  assert.equal(S.request(db, near, NOW).outcome, "held", "the picked suburb decides; a number the page sends is ignored");
+});
+
+test("a hold with no suburb and no known place in the address is requested, not held", () => {
+  const db = makeDb();
+  publish(db);
+  assert.equal(S.request(db, { ...hold("TOKEN-ALEX-0000000000000001", "req-x", "2026-12-19", "09:00"), address: "" }, NOW).outcome, "requested");
+  assert.equal(S.request(db, { ...hold("TOKEN-ALEX-0000000000000001", "req-y", "2026-12-20", "09:00"), address: "1 Road, Wyong", suburb: "other" }, NOW).outcome, "requested");
 });

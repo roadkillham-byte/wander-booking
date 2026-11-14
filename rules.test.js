@@ -160,3 +160,33 @@ test("a change to a time outside the trading hours is asked of Sam", () => {
   assert.equal(out.decision, "requested");
   assert.ok(out.reasons.includes("the new time is outside our usual hours (7 am to 4 pm)"));
 });
+
+test("travelKmFor reads the picked suburb first, then the suburb named in the address, and is unknown otherwise", () => {
+  assert.equal(R.travelKmFor("tea-gardens", ""), 7);
+  assert.equal(R.travelKmFor("", "3 Lake Road, Tea Gardens"), 7);
+  assert.equal(R.travelKmFor("hawks-nest", "9 Somewhere, Forster"), 3, "an explicit pick wins over the typed address");
+  assert.equal(R.travelKmFor("", "12 Forster Way, Tea Gardens"), 80, "a street named after a far suburb counts as far: the farthest match wins");
+  assert.equal(R.travelKmFor("other", "3 Lake Road, Tea Gardens"), null, "somewhere else is never guessed from the address");
+  assert.equal(R.travelKmFor("", "7 Nowhere Lane, Wyong"), null);
+  assert.equal(R.travelKmFor("", ""), null);
+});
+
+test("a hold or change with no known distance is asked of Sam, never held", () => {
+  const req = { date: "2026-12-12", startTime: "09:00", hours: 3 };
+  for (const km of [undefined, null, NaN]) {
+    const out = R.decideHold({ ...req, travelKm: km }, [], "2026-12-01T06:00:00", "2026-12-01T07:00:00");
+    assert.equal(out.decision, "requested");
+    assert.deepEqual(out.reasons, ["the address has not been checked for travel distance"]);
+  }
+  assert.equal(R.decideHold({ ...req, travelKm: 0 }, [], "2026-12-01T06:00:00", "2026-12-01T07:00:00").decision, "held");
+  const change = R.decideChange({ date: "2026-12-12", startTime: "09:00" }, { ...req, date: "2026-12-13" }, [], "2026-12-01T06:00:00", "2026-12-01T07:00:00");
+  assert.equal(change.decision, "requested");
+  assert.ok(change.reasons.includes("the address has not been checked for travel distance"));
+});
+
+test("suburbKeyFor names the suburb in an address, the farthest if several, and empty when none", () => {
+  assert.equal(R.suburbKeyFor("3 Lake Road, Tea Gardens"), "tea-gardens");
+  assert.equal(R.suburbKeyFor("12 Forster Way, Tea Gardens"), "forster");
+  assert.equal(R.suburbKeyFor("7 Nowhere Lane, Wyong"), "");
+  assert.equal(R.suburbKeyFor(""), "");
+});
