@@ -2,6 +2,10 @@
 <html lang="en-AU">
 <head>
 <meta charset="utf-8">
+<script>
+// One link for everyone. A client who arrives with their private key (#k=...) goes straight to their portal, which lives under /portal/ on this site.
+if (/[#&]k=[A-Za-z0-9_-]{8,}/.test(location.hash)) location.replace("portal/" + location.hash);
+</script>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Book Wander Coffee Van</title>
 <meta name="description" content="Coffee van for your event. See your price now, then send your booking request. We call to lock it in.">
@@ -197,6 +201,7 @@ footer a{color:var(--forest)}
 </main>
 
 <footer class="wrap">
+  <p>Already booked with us? Open the private link in your email to see or change your morning.</p>
   <a href="privacy.html">Privacy</a> · Wander Coffee Van · ABN 62 731 017 112 · 0492 801 058 · <a href="mailto:wandermcco@gmail.com">wandermcco@gmail.com</a> · <a href="https://www.instagram.com/_wander_coffee_/">@_wander_coffee_</a>
 </footer>
 
