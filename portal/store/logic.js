@@ -20,7 +20,7 @@ var StoreLogic = (function () {
     clients: ["token", "firstName", "referralCode", "quote", "referrals", "club"],
     events: ["time", "type", "data"],
     bookings: ["id", "clientToken", "status", "date", "startTime", "endTime", "people", "hours", "address", "total", "outOfHoursFee", "requestId",
-      "discount", "amountDue", "bonusHours", "creditsApplied"],
+      "discount", "amountDue", "bonusHours", "creditsApplied", "payLink", "paid"],
     busy: ["date", "startTime", "endTime"],
     holds: ["requestId", "id", "clientToken", "date", "startTime", "endTime", "people", "hours", "address", "total", "outOfHoursFee", "createdAt"],
     queue: ["id", "kind", "receivedAt", "clientToken", "payload", "acked"],
@@ -81,6 +81,12 @@ var StoreLogic = (function () {
       out.push({ firstName: clean(r.firstName, 40), status: r.status });
     });
     return out;
+  }
+
+  // A pay link is a Square address over https and nothing else, so the page can never be made to send a client elsewhere.
+  function payLinkOk(v) {
+    var link = String(v || "");
+    return link.length <= 200 && /^https:\/\/[A-Za-z0-9.-]*square(up)?\.(link|site|com)\/[^\s"'<>]*$/.test(link) ? link : "";
   }
 
   function money(v) {
@@ -218,6 +224,7 @@ var StoreLogic = (function () {
           requestId: clean(b.requestId, 80),
           discount: discount, amountDue: due === null ? Math.max(0, total + fee - discount) : due,
           bonusHours: Math.max(0, Number(b.bonusHours || 0)), creditsApplied: JSON.stringify(cleanLabels(b.creditsApplied)),
+          payLink: payLinkOk(b.payLink), paid: b.paid === true ? "yes" : "",
         };
       });
       var busy = (snapshot.busy || []).map(function (b) { return { date: clean(b.date, 10), startTime: clean(b.startTime, 5), endTime: clean(b.endTime, 5) }; });
@@ -303,6 +310,7 @@ var StoreLogic = (function () {
         address: b.address, total: b.total, outOfHoursFee: b.outOfHoursFee,
         discount: discount, amountDue: due === null ? Math.max(0, total + fee - discount) : due,
         bonusHours: Number(b.bonusHours || 0), creditsApplied: applied,
+        payLink: payLinkOk(b.payLink), paid: String(b.paid) === "yes",
       };
     });
     // A date this client has just held, or a change just applied, shows at once; Coffee Van's next publish replaces it.

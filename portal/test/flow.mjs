@@ -258,6 +258,23 @@ await check("opening a good link while the store is down says the store is not a
 
 await check("a confirmed booking shows the credits taken, the discount and what to pay", async () => {
   await page.goto(url + "/#k=" + MOCK_TWO_TOKEN + "&v=booking&b=bk-l1");
+await page.waitForSelector(".ticket");
+await check("a confirmed booking with a link shows a Pay by card button to Square and the bank transfer line", async () => {
+  const href = await page.getAttribute("a.go[href^='https://square.link']", "href");
+  if (href !== "https://square.link/u/abc123") throw new Error("pay link was " + href);
+  const text = await page.evaluate(() => document.body.innerText);
+  if (!/Pay \$557\.10 by card/.test(text)) throw new Error("button text missing: " + text.slice(0, 300));
+  if (!/bank transfer/i.test(text)) throw new Error("no bank transfer line");
+  await noOverflowAndNoJunk("pay block");
+});
+await page.goto(url + "/#k=" + MOCK_TWO_TOKEN + "&v=booking&b=bk-l2");
+await page.waitForSelector(".ticket");
+await check("a paid booking says so and offers no button", async () => {
+  const text = await page.evaluate(() => document.body.innerText);
+  if (!/Paid\. Thank you/.test(text)) throw new Error("no paid line");
+  if (await page.$("a.go[href^='https://square.link']")) throw new Error("pay button still shown");
+});
+await page.goto(url + "/#k=" + MOCK_TWO_TOKEN + "&v=booking&b=bk-l1");
   await page.waitForSelector(".ticket");
   const txt = await page.innerText("#app");
   for (const want of ["$557.10", "10% off your first morning", "2 free hours (Team Captain)", "$61.90", "$619"]) {
