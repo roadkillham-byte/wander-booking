@@ -28,10 +28,10 @@ body{margin:0;background:var(--cream);color:var(--ink);font-family:var(--body);f
 header{background:var(--sage);color:var(--cream);padding:22px 0 74px;position:relative;overflow:hidden}
 header::after{content:"";position:absolute;left:-5%;right:-5%;bottom:-38px;height:76px;background:var(--cream);border-radius:50% 50% 0 0/100% 100% 0 0}
 .mark{line-height:0}
-.mark img{display:block;width:230px;max-width:72%;height:auto}
-h1{font-family:var(--hand);font-weight:400;font-size:clamp(44px,9vw,84px);line-height:.95;margin:34px 0 14px;max-width:11ch}
+.mark img{display:block;width:300px;max-width:80%;height:auto}
+h1{font-family:var(--hand);font-weight:400;font-size:clamp(52px,11vw,100px);line-height:.92;margin:28px 0 14px;max-width:12ch}
 h1 em{font-style:normal;color:#ffd9ad;border-bottom:6px solid var(--orange)}
-.lede{max-width:44ch;font-size:19px;margin:0;color:#f5f1e8}
+.lede{max-width:34ch;font-size:22px;margin:0;color:#f5f1e8}
 main{position:relative;z-index:1;margin-top:-34px;padding-bottom:64px}
 .grid,.stack{display:grid;gap:22px}
 @media(min-width:860px){.grid{grid-template-columns:1.05fr .95fr;align-items:start}}
@@ -59,7 +59,7 @@ textarea{min-height:76px;resize:vertical}
 .pkg input:focus-visible+span{outline:3px solid var(--orange);outline-offset:2px}
 .tag{position:relative;margin:20px 0 4px;background:var(--orange);color:#231a14;border:2px solid var(--ink);border-radius:12px;padding:16px 18px 14px 34px;transform:rotate(-1.2deg);box-shadow:4px 4px 0 var(--ink)}
 .tag::before{content:"";position:absolute;left:12px;top:50%;width:12px;height:12px;margin-top:-6px;border-radius:50%;background:var(--cream);border:2px solid var(--ink)}
-.tag .amt{font-family:var(--hand);font-size:64px;line-height:.9}
+.tag .amt{font-family:var(--hand);font-size:92px;line-height:.9}
 .tag .amt .cur{font-family:var(--sans);font-weight:700}
 .tag .sub{font-size:17px}
 .fine{font-size:16px;color:var(--line);margin:10px 0 0}
@@ -70,9 +70,9 @@ li::before{content:"";position:absolute;left:4px;top:15px;width:14px;height:8px;
 .promise li::before{border-color:var(--orange)}
 .check{display:flex;gap:10px;align-items:flex-start;margin:16px 0 0;text-transform:none;letter-spacing:0;font-size:17px;color:var(--ink)}
 .check input{width:22px;height:22px;flex:none;margin-top:1px;accent-color:var(--forest)}
-.go{display:block;text-align:center;text-decoration:none;width:100%;margin-top:18px;font-family:var(--hand);font-size:30px;line-height:1;color:var(--cream);background:var(--forest);border:2px solid var(--ink);border-radius:12px;padding:14px 16px 16px;box-shadow:4px 4px 0 var(--ink);transition:transform .12s,box-shadow .12s}
+.go{display:block;text-align:center;text-decoration:none;width:100%;margin-top:18px;font-family:var(--hand);font-size:38px;line-height:1;color:var(--cream);background:var(--forest);border:2px solid var(--ink);border-radius:12px;padding:14px 16px 16px;box-shadow:4px 4px 0 var(--ink);transition:transform .12s,box-shadow .12s}
 .go:hover{transform:translate(2px,2px);box-shadow:2px 2px 0 var(--ink)}
-button{width:100%;margin-top:18px;font-family:var(--hand);font-size:30px;line-height:1;color:var(--cream);background:var(--forest);border:2px solid var(--ink);border-radius:12px;padding:14px 16px 16px;cursor:pointer;box-shadow:4px 4px 0 var(--ink);transition:transform .12s,box-shadow .12s}
+button{width:100%;margin-top:18px;font-family:var(--hand);font-size:38px;line-height:1;color:var(--cream);background:var(--forest);border:2px solid var(--ink);border-radius:12px;padding:14px 16px 16px;cursor:pointer;box-shadow:4px 4px 0 var(--ink);transition:transform .12s,box-shadow .12s}
 button:hover{transform:translate(-1px,-1px);box-shadow:6px 6px 0 var(--ink)}
 button:active{transform:translate(3px,3px);box-shadow:1px 1px 0 var(--ink)}
 button[disabled]{opacity:.6;cursor:progress}
@@ -102,25 +102,32 @@ footer .social{margin:14px 0 0}
 .guar{margin:14px 0 8px;font-size:17px}
 .hp{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
 .details-h{margin-top:22px}
+#people{font-family:var(--hand);font-size:44px;line-height:1;text-align:center;padding:8px 12px}
+.inc{margin:14px 0 0;font-size:18px;font-weight:700;color:var(--forest)}
+.promise-line{margin:14px 0 4px;font-size:18px}
+.after{margin:12px 0 0;font-size:17px;color:var(--line)}
+details.packwrap{margin-top:16px}
+details.packwrap>summary{cursor:pointer;font-family:var(--hand);font-size:26px;line-height:1.1;color:var(--forest);padding:8px 0}
+details.packwrap[open]>summary{margin-bottom:6px}
+details.packwrap .pack{margin-top:6px}
 </style>
 </head>
 <body>
 <header>
   <div class="wrap">
-    <div class="mark rise"><img src="assets/wander-logo.png" alt="Wander" width="460" height="110"></div>
-    <h1 class="rise d1">Coffee Out There, <em>Price now.</em></h1>
-    <p class="lede rise d2">A rough headcount, and how long you'd like us. That's it. A few extra details and the quote lands in minutes. We'll call the same day to confirm.</p>
+    <div class="mark rise"><img src="assets/wander-logo.png" alt="Wander" width="700" height="237"></div>
+    <h1 class="rise d1">A morning your team <em>talks about.</em></h1>
+    <p class="lede rise d2">Pick people and hours. See your price. We handle the rest.</p>
   </div>
 </header>
 
 <main class="wrap">
   <div class="grid">
     <form class="card rise d3" id="form" novalidate>
-      <h2>Your <span>quote</span></h2>
       <div class="row">
-        <div><label for="people">People</label><input id="people" name="people" type="number" inputmode="numeric" min="1" max="500" value="20" required></div>
+        <div><label for="people">How many people?</label><input id="people" name="people" type="number" inputmode="numeric" min="1" max="500" value="20" required></div>
       </div>
-      <label id="hours-label">Hours of service</label>
+      <label id="hours-label">For how long? (hours)</label>
       <div class="hours" role="radiogroup" aria-labelledby="hours-label">
         <label><input type="radio" name="hours" value="2"><span>2</span></label>
         <label><input type="radio" name="hours" value="3" checked><span>3<small>our pick</small></span></label>
@@ -129,16 +136,18 @@ footer .social{margin:14px 0 0}
         <label><input type="radio" name="hours" value="6"><span>6</span></label>
       </div>
       <div id="pkg-wrap">
-      <label id="pkg-label">What are you booking?</label>
+      <label id="pkg-label">One morning or four?</label>
       <div class="pkg" role="radiogroup" aria-labelledby="pkg-label">
         <label><input type="radio" name="package" value="Single morning" checked><span>Single morning</span></label>
-        <label><input type="radio" name="package" value="Office Club 4-Pack"><span>Office Club 4-Pack</span></label>
+        <label><input type="radio" name="package" value="Office Club 4-Pack"><span>4-Pack, best value</span></label>
       </div>
       </div>
       <div class="tag" aria-live="polite">
         <div class="amt" id="amt">$619</div>
         <div class="sub" id="sub">20 people, 3 hours, including GST</div>
       </div>
+      <p class="inc">Any bowl · Unlimited drinks · Set-up included</p>
+      <details class="packwrap"><summary>Four mornings? See the Office Club 4-Pack</summary>
       <div class="pack" id="pack">
         <div class="packhead"><strong>Office Club 4-Pack</strong> <span class="badge">best value</span></div>
         <table class="cmp" aria-label="Four single mornings compared with the Prepaid 4-Pack">
@@ -154,8 +163,8 @@ footer .social{margin:14px 0 0}
         <p class="packline" id="packline">The same price as four single mornings, with bonus time thrown in.</p>
         <p class="fine">Paid up front. Spend your bonus time on any of your four mornings, 30 minutes at a time. Pick the dates now or any time in 12 months, with 24 hours' notice. Cancel a morning with 24 hours' notice and it moves to another date.</p>
       </div>
-      <p class="guar"><strong>Our promise:</strong> 15 minutes late or more? Your first hour is free. We don't turn up? Full refund, no ifs or buts. Coffee not quite right? Remade or refunded on the spot.</p>
-      <h2 class="details-h">Your <span>details</span></h2>
+      </details>
+      <p class="promise-line"><strong>Late, no-show or not right? We make it right.</strong></p>
       <div class="row">
         <div><label for="name">Name</label><input id="name" name="name" autocomplete="name" maxlength="80" required></div>
         <div><label for="phone">Best number</label><input id="phone" name="phone" type="tel" autocomplete="tel" maxlength="30" required></div>
@@ -170,16 +179,15 @@ footer .social{margin:14px 0 0}
       </div>
       <p class="fine" id="start-note" hidden></p>
       <label for="address">Street address</label><input id="address" name="address" autocomplete="street-address" maxlength="200" required>
-      <label class="check"><input type="checkbox" id="offers"> I would like to hear about offers and credits from Wander Coffee Van. I can unsubscribe at any time.</label>
+      <label class="check"><input type="checkbox" id="offers"> Send me offers and credits. Unsubscribe any time.</label>
       <div id="heard-wrap" hidden>
         <label for="heard">How did you hear about us? (optional)</label>
         <select id="heard" name="heard"><option value="">Choose one</option><option value="van">Saw the van</option><option value="flyer">A flyer</option><option value="instagram">Instagram</option><option value="friend">A friend</option><option value="search">Searching online</option><option value="other">Something else</option></select>
       </div>
       <div class="hp" aria-hidden="true"><label>Leave this empty<input name="website" id="website" tabindex="-1" autocomplete="off"></label></div>
-      <button type="submit" class="go" id="go">Email me my price and call me today</button>
+      <button type="submit" class="go" id="go">Get my price and hold my date</button>
       <p class="ref-note" id="ref-note" hidden>A friend sent you, so your first morning is 10% off. Send your details and we will thank them.</p>
-      <p class="fine">We ring you today to confirm the details. Prefer the 4-Pack? Choose it above, or tell us on the call.</p>
-      <p class="fine">Travel is free within 50 km of our base. Further out, we confirm a small travel charge on the call.</p>
+      <p class="after">We ring you today to confirm. Travel is free within 50 km.</p>
       <div class="msg" id="msg" role="alert" hidden></div>
     </form>
 
@@ -187,20 +195,20 @@ footer .social{margin:14px 0 0}
       <section class="card rise d4">
         <h2>What you <span>get</span></h2>
         <ul>
-          <li>One bowl per person, any bowl you like</li>
+          <li>Any bowl you like, one each</li>
           <li>Unlimited coffee, tea and hot chocolate</li>
-          <li>Our set-up hour, included</li>
-          <li>A free babyccino for each child</li>
-          <li>No preordering required, just people and hours. Simple as that.</li>
+          <li>Set-up included</li>
+          <li>A free babyccino for every child</li>
+          <li>No preordering. Just people and hours.</li>
         </ul>
       </section>
       <section class="card rise d4">
         <h2>Our <span>guarantees</span></h2>
         <ul class="promise">
-          <li>15 minutes late or more? Your first hour is free.</li>
-          <li>We don't turn up? Full refund, no ifs or buts.</li>
-          <li>Coffee not quite right? Remade or refunded on the spot.</li>
-          <li>Cancelling up to 24 hours before? The full amount goes towards your next booking.</li>
+          <li>15 minutes late? Your first hour is free.</li>
+          <li>We don't turn up? Full refund. No ifs or buts.</li>
+          <li>Not quite right? Remade or refunded on the spot.</li>
+          <li>Cancel 24 hours ahead? It all goes to your next booking.</li>
         </ul>
       </section>
     </div>
