@@ -109,6 +109,11 @@ footer .social{margin:14px 0 0}
 section.good details{border-top:1.5px dashed rgba(116,93,78,.45);padding:10px 0}
 section.good summary{cursor:pointer;font-weight:700;color:var(--forest)}
 section.good details p{margin:8px 0 0}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 4px}
+.chip{width:auto;margin:0;padding:12px 18px;font-family:var(--hand);font-size:26px;line-height:1;color:var(--forest);background:#fff;border:2px solid var(--line);border-radius:999px;box-shadow:none;cursor:pointer}
+.chip[aria-checked="true"]{background:var(--forest);border-color:var(--forest);color:var(--cream)}
+#start-note{font-size:19px;font-weight:700;color:var(--forest);margin:4px 0 0}
+#start-note.low{color:var(--orange)}
 .perhead{margin:6px 0 0;font-size:18px;font-weight:700;color:var(--forest)}
 .anchor{margin:4px 0 0;font-size:17px;color:var(--ink)}
 .case{margin:0 0 14px;padding:12px 14px;border:2px solid var(--forest);border-radius:12px;background:#fff9ef}
@@ -189,12 +194,14 @@ details.packwrap .pack{margin-top:6px}
         <div><label for="email">Email</label><input id="email" name="email" type="email" autocomplete="email" maxlength="120" required></div>
         <div><label for="date">Date of your event</label><input id="date" name="date" type="date" required></div>
       </div>
+      <label id="start-label">Start time</label>
+      <p id="start-note" hidden></p>
+      <div class="chips" id="start-chips" role="radiogroup" aria-labelledby="start-label"><span class="fine">Pick a date first</span></div>
+      <select id="start" name="start" hidden><option value="">Pick a date first</option></select>
       <div class="row">
-        <div><label for="start">Start time</label><select id="start" name="start" required><option value="">Pick a date first</option></select></div>
         <div><label for="suburb">Suburb</label><select id="suburb" name="suburb" required></select></div>
+        <div><label for="address">Street address</label><input id="address" name="address" autocomplete="street-address" maxlength="200" required></div>
       </div>
-      <p class="fine" id="start-note" hidden></p>
-      <label for="address">Street address</label><input id="address" name="address" autocomplete="street-address" maxlength="200" required>
       <label class="check"><input type="checkbox" id="offers"> Send me offers and credits. Unsubscribe any time.</label>
       <div id="heard-wrap" hidden>
         <label for="heard">How did you hear about us? (optional)</label>
@@ -277,12 +284,17 @@ const hours = () => Number(document.querySelector('input[name="hours"]:checked')
 const money = (n) => "$" + n.toLocaleString("en-AU");
 const hoursText = (h) => (h === 1 ? "1 hour" : h + " hours");
 const money2 = (v) => "$" + v.toFixed(2);
-// An honest comparison, only when Sam has put a real figure in config.js and Wander is the lower price.
+// A fair comparison, only when Sam has put a real figure in config.js. Competitors sell coffee-only packages, so when Wander
+// costs more the difference is named: it is a full bowl for every person. The list of what they leave out is Sam's, from config.js.
 function showAnchor(n, h) {
   const el = document.getElementById("anchor"), a = window.WANDER_ANCHOR || {};
   const ours = n ? quote(n, h) / n : 0;
-  if (!(a.perPerson > 0) || !n || !(ours < a.perPerson)) { el.hidden = true; return; }
-  el.textContent = `${a.label || "Typical event coffee"}: about ${money2(a.perPerson)} a head. With us: ${money2(ours)}.`;
+  if (!(a.perPerson > 0) || !n) { el.hidden = true; return; }
+  const label = a.label || "A typical coffee-only package";
+  let text = `${label}: about ${money2(a.perPerson)} a head. Wander: ${money2(ours)} a head`;
+  text += ours <= a.perPerson ? "." : `, which includes a full bowl for every person (${money2(ours - a.perPerson)} more).`;
+  if (Array.isArray(a.wontInclude) && a.wontInclude.length) text += " They usually leave out: " + a.wontInclude.join(", ") + ".";
+  el.textContent = text;
   el.hidden = false;
 }
 function validPeople() { const n = Number(peopleEl.value); return Number.isInteger(n) && n >= 1 && n <= 500 ? n : null; }
@@ -368,10 +380,23 @@ async function ensureOpenDays(h) {
   const box = field("proof"), b = document.createElement("blockquote"), c = document.createElement("cite");
   b.textContent = "\u201c" + q.quote + "\u201d"; c.textContent = q.who; b.appendChild(c); box.appendChild(b); box.hidden = false;
 });
+// The start times as big tap targets: the fewer there are, the more the choice is felt. The hidden select keeps the value.
+const pretty = (t) => { const [hh, mm] = t.split(":").map(Number); return (hh % 12 || 12) + (mm ? ":" + String(mm).padStart(2, "0") : "") + (hh < 12 ? " am" : " pm"); };
+function renderChips(times) {
+  const box = field("start-chips"), sel = field("start");
+  box.innerHTML = "";
+  if (!field("date").value) { box.innerHTML = '<span class="fine">Pick a date first</span>'; return; }
+  times.forEach((t) => {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "chip"; b.textContent = pretty(t); b.setAttribute("role", "radio"); b.setAttribute("aria-checked", String(sel.value === t));
+    b.addEventListener("click", () => { sel.value = t; box.querySelectorAll(".chip").forEach((c) => c.setAttribute("aria-checked", String(c === b))); });
+    box.appendChild(b);
+  });
+}
 async function refreshStartTimes() {
   const h = hours(), date = field("date").value, sel = field("start"), note = field("start-note");
   note.hidden = true;
-  if (!date) { sel.innerHTML = '<option value="">Pick a date first</option>'; return; }
+  if (!date) { sel.innerHTML = '<option value="">Pick a date first</option>'; renderChips([]); return; }
   await ensureOpenDays(h);
   let times = usualTimes(h), note_ = "";
   // What we say is only what the store knows: how many start times that day, or the nearest free day when it is full.
@@ -387,7 +412,8 @@ async function refreshStartTimes() {
   const keep = sel.value;
   sel.innerHTML = '<option value="">Pick a start time</option>' + times.map((t) => '<option value="' + t + '">' + t + "</option>").join("");
   if (times.indexOf(keep) >= 0) sel.value = keep;
-  if (note_) { note.textContent = note_; note.hidden = false; }
+  if (note_) { note.textContent = note_; note.className = /Only|full/.test(note_) ? "low" : ""; note.hidden = false; }
+  renderChips(times);
 }
 field("date").addEventListener("change", refreshStartTimes);
 ensureOpenDays(hours());
