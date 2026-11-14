@@ -23,3 +23,6 @@ window.WANDER_EXPERIMENTS = {};
   var base = "https://roadkillham-byte.github.io/wander-booking/";
   window.WANDER_LINKS = { page: base, compare: base + "#pack", form: window.WANDER_FORM_URL, call: "tel:0492801058" };
 })();
+
+// Real words from real clients, shown in the "Good to know" box once there are some: [{ quote: "...", who: "Name, business" }]. Leave empty until then.
+window.WANDER_PROOF = [];
