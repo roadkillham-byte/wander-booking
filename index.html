@@ -13,7 +13,7 @@
 :root{
   --sage:#738561; --sage-deep:#5f7050; --cream:#f2ebe2; --paper:#faf6ef; --orange:#f57b00;
   --forest:#174638; --ink:#4d3b31; --line:#745d4e;
-  --hand:"WanderHand","Comic Sans MS",cursive; --body:"Atkinson Hyperlegible",system-ui,sans-serif;
+  --hand:"WanderHand","Comic Sans MS",cursive; --body:"WanderHand","Comic Sans MS",cursive; --sans:"Atkinson Hyperlegible",system-ui,sans-serif;
 }
 *{box-sizing:border-box}
 html{scroll-behavior:smooth}
@@ -23,8 +23,8 @@ body{margin:0;background:var(--cream);color:var(--ink);font-family:var(--body);f
 .wrap{max-width:1040px;margin:0 auto;padding:0 16px}
 header{background:var(--sage);color:var(--cream);padding:22px 0 74px;position:relative;overflow:hidden}
 header::after{content:"";position:absolute;left:-5%;right:-5%;bottom:-38px;height:76px;background:var(--cream);border-radius:50% 50% 0 0/100% 100% 0 0}
-.mark{font-family:var(--hand);font-size:34px;line-height:1;letter-spacing:.5px}
-.mark small{display:block;font-family:var(--body);font-size:11px;letter-spacing:.32em;color:#dfe6d3;margin-top:4px}
+.mark{line-height:0}
+.mark img{display:block;width:230px;max-width:72%;height:auto}
 h1{font-family:var(--hand);font-weight:400;font-size:clamp(44px,9vw,84px);line-height:.95;margin:34px 0 14px;max-width:11ch}
 h1 em{font-style:normal;color:#ffd9ad;border-bottom:6px solid var(--orange)}
 .lede{max-width:44ch;font-size:19px;margin:0;color:#f5f1e8}
@@ -47,10 +47,16 @@ textarea{min-height:76px;resize:vertical}
 .hours small{display:block;font-size:11px;color:var(--line)}
 .hours input:checked+span{background:var(--forest);border-color:var(--forest);color:var(--cream);font-size:34px;font-weight:700;padding:14px 0}
 .hours input:checked+span small{color:#cfe0c4}
+.pkg{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.pkg label{margin:0;text-transform:none;letter-spacing:0;font-size:inherit}
+.pkg input{position:absolute;opacity:0;width:1px;height:1px}
+.pkg span{display:block;text-align:center;border:2px solid var(--line);border-radius:10px;padding:10px 6px;background:#fff;font-family:var(--hand);font-size:24px;line-height:1.1;cursor:pointer}
+.pkg input:checked+span{background:var(--forest);border-color:var(--forest);color:var(--cream)}
+.pkg input:focus-visible+span{outline:3px solid var(--orange);outline-offset:2px}
 .tag{position:relative;margin:20px 0 4px;background:var(--orange);color:#231a14;border:2px solid var(--ink);border-radius:12px;padding:16px 18px 14px 34px;transform:rotate(-1.2deg);box-shadow:4px 4px 0 var(--ink)}
 .tag::before{content:"";position:absolute;left:12px;top:50%;width:12px;height:12px;margin-top:-6px;border-radius:50%;background:var(--cream);border:2px solid var(--ink)}
 .tag .amt{font-family:var(--hand);font-size:64px;line-height:.9}
-.tag .amt .cur{font-family:var(--body);font-weight:700}
+.tag .amt .cur{font-family:var(--sans);font-weight:700}
 .tag .sub{font-size:15px}
 .fine{font-size:14px;color:var(--line);margin:10px 0 0}
 ul{list-style:none;margin:0;padding:0}
@@ -93,9 +99,9 @@ footer a{color:var(--forest)}
 <body>
 <header>
   <div class="wrap">
-    <div class="mark rise">wander<small>MOBILE COFFEE</small></div>
-    <h1 class="rise d1">Coffee van at your event. <em>Price now.</em></h1>
-    <p class="lede rise d2">Tell us how many people. You see the price straight away. Send five quick details and your quote lands in your inbox within a minute. We call the same day to lock it in.</p>
+    <div class="mark rise"><img src="assets/wander-logo.png" alt="Wander" width="460" height="110"></div>
+    <h1 class="rise d1">Coffee Out There, <em>Price now.</em></h1>
+    <p class="lede rise d2">A rough headcount, and how long you'd like us. That's it. A few extra details and the quote lands in minutes. We'll call the same day to confirm.</p>
   </div>
 </header>
 
@@ -113,6 +119,13 @@ footer a{color:var(--forest)}
         <label><input type="radio" name="hours" value="4"><span>4</span></label>
         <label><input type="radio" name="hours" value="5"><span>5</span></label>
         <label><input type="radio" name="hours" value="6"><span>6</span></label>
+      </div>
+      <div id="pkg-wrap" hidden>
+      <label id="pkg-label">What are you booking?</label>
+      <div class="pkg" role="radiogroup" aria-labelledby="pkg-label">
+        <label><input type="radio" name="package" value="Single morning" checked><span>Single morning</span></label>
+        <label><input type="radio" name="package" value="Office Club 4-Pack"><span>Office Club 4-Pack</span></label>
+      </div>
       </div>
       <div class="tag" aria-live="polite">
         <div class="amt" id="amt">$619</div>
@@ -136,7 +149,7 @@ footer a{color:var(--forest)}
       <p class="guar"><strong>Our promise:</strong> 15 minutes late or more? Your first hour is free. We don't turn up? Full refund, no ifs or buts. Coffee not quite right? Remade or refunded on the spot.</p>
       <a class="go" id="go" href="#" rel="noopener">Email me my price and call me today</a>
       <p class="ref-note" id="ref-note" hidden>A friend sent you, so your first morning is 10% off. Send your details and we will thank them.</p>
-      <p class="fine">Five details. We confirm your hours, start time and address on the call. Prefer the 4-Pack? Say so on the call, or reply to your quote.</p>
+      <p class="fine">A few extra details. We confirm your hours, start time and address on the call. Prefer the 4-Pack? Say so on the call, or reply to your quote.</p>
       <p class="fine">Travel is free within 50 km of our base. Further out, we confirm a small travel charge on the call.</p>
       <div class="msg" id="msg" role="alert" hidden></div>
     </section>
@@ -182,6 +195,7 @@ const FORM_URL = window.WANDER_FORM_URL || "";
 // A friend's code from ?ref= (kept 30 days). It only reaches the form, and only says thank you, when the form's referral question is set.
 const referralCode = (() => { try { return window.WanderReferral.captureReferral(location.search, localStorage, Date.now()); } catch (err) { return null; } })();
 const referralLive = !!referralCode && /^\d+$/.test(String(window.WANDER_FORM_REFERRAL_ENTRY || ""));
+if (/^\d+$/.test(String(window.WANDER_FORM_PACKAGE_ENTRY || ""))) document.getElementById("pkg-wrap").hidden = false;
 document.getElementById("ref-note").hidden = !referralLive;
 const { quote, packPrice, packBonus } = window.WanderQuote;
 const peopleEl = document.getElementById("people"), msg = document.getElementById("msg"), go = document.getElementById("go");
@@ -213,7 +227,11 @@ go.addEventListener("click", (event) => {
   if (tracker) tracker.track("cta", { form: /^https:\/\/(docs\.google\.com\/forms|forms\.gle)\//.test(FORM_URL) });
   if (tracker) tracker.flush();
   if (/^https:\/\/(docs\.google\.com\/forms|forms\.gle)\//.test(FORM_URL)) {
-    go.href = window.WanderReferral.buildFormUrl(FORM_URL, window.WANDER_FORM_REFERRAL_ENTRY, referralCode);
+    const pkg = document.querySelector('input[name="package"]:checked');
+    go.href = window.WanderReferral.prefilledFormUrl(FORM_URL, [
+      [window.WANDER_FORM_REFERRAL_ENTRY, window.WanderReferral.normalise(referralCode || "")],
+      [window.WANDER_FORM_PACKAGE_ENTRY, pkg ? pkg.value : ""],
+    ]);
     return;
   }
   event.preventDefault();

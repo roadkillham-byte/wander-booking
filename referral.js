@@ -45,5 +45,14 @@
     return base + sep + "usp=pp_url&entry." + entryId + "=" + encodeURIComponent(canonical);
   }
 
-  return { normalise, captureReferral, buildFormUrl };
+  // Prefills any answers the page knows. A pair with no entry id or no answer is left out.
+  function prefilledFormUrl(base, pairs) {
+    const parts = (pairs || []).filter(([entryId, value]) => /^\d+$/.test(String(entryId || "")) && String(value || "") !== "")
+      .map(([entryId, value]) => "entry." + entryId + "=" + encodeURIComponent(String(value)));
+    if (parts.length === 0) return base;
+    const sep = base.indexOf("?") >= 0 ? "&" : "?";
+    return base + sep + "usp=pp_url&" + parts.join("&");
+  }
+
+  return { normalise, captureReferral, buildFormUrl, prefilledFormUrl };
 });
