@@ -108,7 +108,7 @@ await check("the funnel screens have no menu and the account screens do", async 
 await check("moving around inside the page shows the next screen at once, even when the store is slow", async () => {
   await page.goto(url + "/#k=" + MOCK_TWO_TOKEN + "&v=bookings");
   await page.waitForSelector(".list");
-  await page.route("**/*action=session*", async (route) => { await new Promise((r) => setTimeout(r, 4000)); await route.continue(); });
+  await page.route("**/*action=session*", async (route) => { await new Promise((r) => setTimeout(r, 4000)); await route.continue().catch(() => undefined); });
   const t = Date.now();
   await page.click(".list a");
   await page.waitForSelector("#cancel-ask", { timeout: 1500 });
