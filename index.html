@@ -211,10 +211,12 @@ footer a{color:var(--forest)}
 // emails the quote and alerts Wander. If tracking is configured it records what visitors do here, never what they
 // type (see privacy.html).
 // A friend's code from ?ref= (kept 30 days). It goes with the request, and the page says thank you.
-const referralCode = (() => { try { return window.WanderReferral.captureReferral(location.search, localStorage, Date.now()); } catch (err) { return null; } })();
+// Storage can be blocked (private modes, strict settings); read it on its own so a tagged link still counts without it.
+const store = (() => { try { return localStorage; } catch (err) { return null; } })();
+const referralCode = (() => { try { return window.WanderReferral.captureReferral(location.search, store, Date.now()); } catch (err) { return null; } })();
 document.getElementById("ref-note").hidden = !referralCode;
 // Which door brought the visitor (first utm tag, 90 days). Untagged visitors are asked once, in one optional tap.
-const source = (() => { try { return window.WanderSource.captureSource(location.search, localStorage, Date.now()); } catch (err) { return null; } })();
+const source = (() => { try { return window.WanderSource.captureSource(location.search, store, Date.now()); } catch (err) { return null; } })();
 document.getElementById("heard-wrap").hidden = !!source || !!referralCode;
 const { quote, packPrice, packBonus } = window.WanderQuote;
 const peopleEl = document.getElementById("people"), msg = document.getElementById("msg"), go = document.getElementById("go");
@@ -287,8 +289,10 @@ document.getElementById("form").addEventListener("submit", async (event) => {
 });
 
 // Passive tracking: inert unless config.js sets the events URL and site key.
-const tracker = window.WanderBoot.tracker();
-if (tracker.enabled) {
+// If the tracking scripts are blocked or fail, booking still works: there is just no tracker.
+let tracker = null;
+try { tracker = window.WanderBoot.tracker(); } catch (err) { tracker = null; }
+if (tracker && tracker.enabled) {
   tracker.track("view", tracker.viewData({
     search: location.search, referrer: document.referrer, path: location.pathname, lang: navigator.language,
     tzo: -new Date().getTimezoneOffset(), hour: new Date().getHours(), width: window.innerWidth,
