@@ -164,6 +164,12 @@ footer .social{margin:14px 0 0}
         <div><label for="email">Email</label><input id="email" name="email" type="email" autocomplete="email" maxlength="120" required></div>
         <div><label for="date">Date of your event</label><input id="date" name="date" type="date" required></div>
       </div>
+      <div class="row">
+        <div><label for="start">Start time</label><select id="start" name="start" required><option value="">Pick a date first</option></select></div>
+        <div><label for="suburb">Suburb</label><select id="suburb" name="suburb" required></select></div>
+      </div>
+      <p class="fine" id="start-note" hidden></p>
+      <label for="address">Street address</label><input id="address" name="address" autocomplete="street-address" maxlength="200" required>
       <label class="check"><input type="checkbox" id="offers"> I would like to hear about offers and credits from Wander Coffee Van. I can unsubscribe at any time.</label>
       <div id="heard-wrap" hidden>
         <label for="heard">How did you hear about us? (optional)</label>
@@ -172,7 +178,7 @@ footer .social{margin:14px 0 0}
       <div class="hp" aria-hidden="true"><label>Leave this empty<input name="website" id="website" tabindex="-1" autocomplete="off"></label></div>
       <button type="submit" class="go" id="go">Email me my price and call me today</button>
       <p class="ref-note" id="ref-note" hidden>A friend sent you, so your first morning is 10% off. Send your details and we will thank them.</p>
-      <p class="fine">A few extra details. We confirm your hours, start time and address on the call. Prefer the 4-Pack? Say so on the call, or reply to your quote.</p>
+      <p class="fine">We ring you today to confirm the details. Prefer the 4-Pack? Choose it above, or tell us on the call.</p>
       <p class="fine">Travel is free within 50 km of our base. Further out, we confirm a small travel charge on the call.</p>
       <div class="msg" id="msg" role="alert" hidden></div>
     </form>
@@ -213,6 +219,7 @@ footer .social{margin:14px 0 0}
 <script src="referral.js"></script>
 <script src="source.js"></script>
 <script src="boot.js"></script>
+<script src="portal/rules.js"></script>
 <script>
 // The price below is Wander's Catering Rate Card (quote.js). Requests go to Wander's booking intake (config.js), which
 // emails the quote and alerts Wander. If tracking is configured it records what visitors do here, never what they
@@ -252,15 +259,58 @@ function showQuote() {
 }
 document.addEventListener("input", showQuote); showQuote();
 const INTAKE_URL = window.WANDER_INTAKE_URL || "";
+const STORE_URL = window.WANDER_STORE_URL || "";
 const CALL_LINE = "Call us on 0492 801 058 and we will take it from there.";
 const todaySydney = () => new Date().toLocaleDateString("en-CA", { timeZone: "Australia/Sydney" });
 const field = (id) => document.getElementById(id);
+const uid = () => (window.crypto && crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(36).slice(2));
+async function postJson(url, body, ms) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), ms);
+  try {
+    const res = await fetch(url, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(body), signal: ctrl.signal });
+    return await res.json();
+  } finally { clearTimeout(timer); }
+}
+
+// Suburb: how far the van travels. The store works the distance out from this pick; the page never sends a number.
+field("suburb").innerHTML = '<option value="">Pick your suburb</option>' +
+  WanderRules.SUBURBS.map((s) => '<option value="' + s.key + '">' + s.label + "</option>").join("") + '<option value="other">Somewhere else</option>';
+
+// Start time: the times the van is really free that day, from the store. If the store is not answering, the usual times are
+// offered instead and the request is simply confirmed by us.
+let openDays = null, openHoursFor = 0;
+const clock = (m) => String(Math.floor(m / 60)).padStart(2, "0") + ":" + (m % 60 === 0 ? "00" : "30");
+function usualTimes(h) { const out = []; for (let m = 7 * 60; m <= 16 * 60; m += 30) if (WanderRules.withinTradingHours(clock(m), h)) out.push(clock(m)); return out; }
+async function refreshStartTimes() {
+  const h = hours(), date = field("date").value, sel = field("start"), note = field("start-note");
+  note.hidden = true;
+  if (!date) { sel.innerHTML = '<option value="">Pick a date first</option>'; return; }
+  if (STORE_URL && openHoursFor !== h) {
+    openHoursFor = h; openDays = null;
+    try { const r = await postJson(STORE_URL + "?action=opentimes", { hours: h }, 12000); if (r && r.ok && !r.stale) openDays = r.days || {}; } catch (e) { openDays = null; }
+  }
+  let times = usualTimes(h), note_ = "";
+  if (openDays && field("date").value === date) {
+    times = openDays[date] || [];
+    if (times.length === 0) note_ = "No free times that day. Try another date, or send it anyway and we will confirm.";
+  }
+  if (times.length === 0) times = usualTimes(h);
+  const keep = sel.value;
+  sel.innerHTML = '<option value="">Pick a start time</option>' + times.map((t) => '<option value="' + t + '">' + t + "</option>").join("");
+  if (times.indexOf(keep) >= 0) sel.value = keep;
+  if (note_) { note.textContent = note_; note.hidden = false; }
+}
+field("date").addEventListener("change", refreshStartTimes);
+document.querySelectorAll('input[name="hours"]').forEach((el) => el.addEventListener("change", () => { openHoursFor = 0; refreshStartTimes(); }));
+
 function bookingPayload() {
   const pkg = document.querySelector('input[name="package"]:checked');
   return {
     action: "booking", website: field("website").value,
     name: field("name").value.trim(), phone: field("phone").value.trim(), email: field("email").value.trim(),
-    date: field("date").value, people: validPeople(), hours: hours(),
+    date: field("date").value, startTime: field("start").value, suburb: field("suburb").value, address: field("address").value.trim(),
+    people: validPeople(), hours: hours(),
     package: pkg ? pkg.value : "Single morning", offers: field("offers").checked, referral: referralCode || "",
     source: source ? source.source : (referralCode ? "referral" : ""), medium: source ? source.medium : (referralCode ? "referral" : ""),
     campaign: source ? source.campaign : "", heard: field("heard").value,
@@ -272,10 +322,18 @@ function bookingProblem(p) {
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(p.email)) return "Please check your email address.";
   if (!p.date) return "Please pick the date of your event.";
   if (p.date < todaySydney()) return "That date has passed. Pick a date from today on.";
+  if (!p.startTime) return "Please pick a start time.";
+  if (!p.suburb) return "Please pick your suburb.";
+  if (!p.address) return "Please add the street address.";
   if (!p.people) return "Enter 1 to 500 people above.";
   return "";
 }
-function say(text, ok) { msg.textContent = text; msg.hidden = false; msg.dataset.state = ok ? "ok" : "problem"; }
+function say(text, ok, linkHref) {
+  msg.textContent = text; msg.hidden = false; msg.dataset.state = ok ? "ok" : "problem";
+  if (linkHref) { const a = document.createElement("a"); a.href = linkHref; a.textContent = "Open your page"; a.className = "go"; msg.appendChild(document.createElement("br")); msg.appendChild(a); }
+}
+// One request id per set of details, so a retry after a failure never holds a second slot.
+let lastAttempt = { sig: "", requestId: "", hold: null };
 document.getElementById("form").addEventListener("submit", async (event) => {
   event.preventDefault();
   if (tracker) { tracker.track("cta", { form: true }); tracker.flush(); }
@@ -284,10 +342,26 @@ document.getElementById("form").addEventListener("submit", async (event) => {
   if (problem) { say(problem, false); return; }
   go.disabled = true;
   say("Sending your details...", true);
+  const sig = JSON.stringify([p.name, p.email, p.date, p.startTime, p.people, p.hours, p.suburb, p.address]);
+  if (lastAttempt.sig !== sig) lastAttempt = { sig, requestId: uid(), hold: null };
+  // First the store: it decides whether the date can be held and makes the client's own private key. If it cannot be reached,
+  // the request still goes to us in the usual way and we confirm it.
+  if (STORE_URL && !lastAttempt.hold && !p.website) {
+    try {
+      const r = await postJson(STORE_URL + "?action=newhold", Object.assign({}, p, { requestId: lastAttempt.requestId, shownTotal: quote(p.people, p.hours), shownFee: 0 }), 20000);
+      if (r && r.ok && r.key) lastAttempt.hold = { outcome: r.outcome, key: r.key };
+    } catch (err) { /* fall through: the intake alone */ }
+  }
+  const hold = lastAttempt.hold;
+  const body = hold ? Object.assign({}, p, { outcome: hold.outcome, key: hold.key }) : p;
   try {
-    const res = await fetch(INTAKE_URL, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(p) });
-    const data = await res.json();
-    if (data && data.ok) { say("Thanks. Your price is on its way to your inbox, and we will call you today to confirm.", true); go.textContent = "Sent. Thank you!"; return; }
+    const data = await postJson(INTAKE_URL, body, 25000);
+    if (data && data.ok) {
+      const heldText = hold && hold.outcome === "held" ? "Your date is held. " : "";
+      say(heldText + "Your price is on its way to your inbox, and we will call you today to confirm.", true, hold ? "portal/#k=" + hold.key : "");
+      go.textContent = hold && hold.outcome === "held" ? "Held. Thank you!" : "Sent. Thank you!";
+      return;
+    }
     say("We could not take that just now. " + CALL_LINE, false);
   } catch (err) {
     say("We could not send that. " + CALL_LINE, false);

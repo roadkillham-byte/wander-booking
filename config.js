@@ -3,6 +3,9 @@ window.WANDER_FORM_URL = "https://docs.google.com/forms/d/e/1FAIpQLSdrma63Aq_JTX
 // The booking intake (the Client Confirmation Google script's web app). The page posts each request here; it emails the
 // quote and alerts Wander. Public address: nothing secret in it.
 window.WANDER_INTAKE_URL = "https://script.google.com/macros/s/AKfycbxdeorHui4vgW2oQXYC8bS4rmYHU_JXL_ARH6XizzqD8b3HzobVtB6ctgR-SFLpJfLeYw/exec";
+// The store the customer portal uses (portal/config.js): the booking page asks it for free start times and for a first-time client's hold.
+// A public address; nothing secret in it. If it does not answer, the page falls back to the intake alone and we confirm by phone.
+window.WANDER_STORE_URL = "https://script.google.com/macros/s/AKfycbxCGCNlXLi89gROVM7TJhMAJNvZVCgVGUzmfCFUUIPpMDByO10IcHHxbQW_appYTI0/exec";
 
 // Where happy clients are asked to leave a review (a Google review link). Empty means no review ask is shown.
 window.WANDER_REVIEW_URL = "";
