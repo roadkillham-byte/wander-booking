@@ -166,7 +166,7 @@ details.packwrap .pack{margin-top:6px}
         <div class="sub" id="sub">20 people, 3 hours, including GST</div>
       </div>
       <p class="perhead" id="perhead"></p>
-      <p class="anchor" id="anchor" hidden></p>
+      <div id="anchor" hidden></div>
       <p class="inc">Any bowl · Unlimited drinks · Set-up included</p>
       <details class="packwrap"><summary>Four mornings? See the Office Club 4-Pack</summary>
       <div class="pack" id="pack">
@@ -284,18 +284,33 @@ const hours = () => Number(document.querySelector('input[name="hours"]:checked')
 const money = (n) => "$" + n.toLocaleString("en-AU");
 const hoursText = (h) => (h === 1 ? "1 hour" : h + " hours");
 const money2 = (v) => "$" + v.toFixed(2);
-// A fair comparison, only when Sam has put a real figure in config.js. Competitors sell coffee-only packages, so when Wander
-// costs more the difference is named: it is a full bowl for every person. The list of what they leave out is Sam's, from config.js.
+// Fair comparisons, from real figures Sam keeps in config.js (WANDER_ANCHORS). Each is one line of totals for this visitor's
+// numbers. A package with tiers (guests, hours, price) is priced the way its seller prices it: the smallest tier that covers the
+// group. When Wander costs more than a coffee-only package, the difference is named: a full bowl for every person. A comparison
+// that makes Wander look dearer for the same thing is not shown, and neither is one that does not cover this group.
 function showAnchor(n, h) {
-  const el = document.getElementById("anchor"), a = window.WANDER_ANCHOR || {};
-  const ours = n ? quote(n, h) / n : 0;
-  if (!(a.perPerson > 0) || !n) { el.hidden = true; return; }
-  const label = a.label || "A typical coffee-only package";
-  let text = `${label}: about ${money2(a.perPerson)} a head. Wander: ${money2(ours)} a head`;
-  text += ours <= a.perPerson ? "." : `, which includes a full bowl for every person (${money2(ours - a.perPerson)} more).`;
-  if (Array.isArray(a.wontInclude) && a.wontInclude.length) text += " They usually leave out: " + a.wontInclude.join(", ") + ".";
-  el.textContent = text;
-  el.hidden = false;
+  const box = document.getElementById("anchor");
+  box.textContent = "";
+  const ours = n ? quote(n, h) : 0;
+  (window.WANDER_ANCHORS || []).forEach((a) => {
+    if (!n) return;
+    let theirs = 0, which = "";
+    if (Array.isArray(a.tiers) && a.tiers.length) {
+      const t = a.tiers.slice().sort((x, y) => x.guests - y.guests).find((x) => x.guests >= n && x.hours >= h);
+      if (!t) return;
+      theirs = t.price; which = ` (their ${t.guests}-guest ${t.hours >= 8 ? "full-day" : t.hours + "-hour"} package)`;
+    } else if (a.perPerson > 0) theirs = a.perPerson * n;
+    if (!(theirs > 0)) return;
+    const cheaper = ours <= theirs;
+    if (!cheaper && !a.coffeeOnly) return;
+    const p = document.createElement("p");
+    p.className = "anchor";
+    p.textContent = `${a.label || "A typical package"}: ${money(theirs)}${which}. Wander: ${money(ours)}` +
+      (cheaper ? "." : `, with a full bowl for every person (${money2((ours - theirs) / n)} more a head).`) +
+      (Array.isArray(a.wontInclude) && a.wontInclude.length ? " They usually leave out: " + a.wontInclude.join(", ") + "." : "");
+    box.appendChild(p);
+  });
+  box.hidden = box.childNodes.length === 0;
 }
 function validPeople() { const n = Number(peopleEl.value); return Number.isInteger(n) && n >= 1 && n <= 500 ? n : null; }
 function showQuote() {
