@@ -74,12 +74,12 @@ export function seededDb(now = new Date().toISOString()) {
     ],
     bookings: [
       { id: "bk-old", clientToken: MOCK_RETURNING_TOKEN, status: "completed", date: "2026-10-10", startTime: "09:00", endTime: "12:00",
-        people: 20, hours: 3, address: "1 Main Street, Forster", total: 619, outOfHoursFee: 0, requestId: "" },
+        people: 20, hours: 3, address: "1 Main Street, Tea Gardens", total: 619, outOfHoursFee: 0, requestId: "" },
       // A booking Sam typed into Coffee Van by hand: no headcount and no start time.
       { id: "bk-hand", clientToken: MOCK_HANDMADE_TOKEN, status: "completed", date: "2026-10-03", startTime: "", endTime: "",
         people: 0, hours: 3, address: "", total: 0, outOfHoursFee: 0, requestId: "" },
       { id: "bk-l1", clientToken: MOCK_TWO_TOKEN, status: "confirmed", date: "2026-12-05", startTime: "09:00", endTime: "12:00",
-        people: 20, hours: 3, address: "1 Main Street, Forster", total: 619, outOfHoursFee: 0, requestId: "",
+        people: 20, hours: 3, address: "1 Main Street, Tea Gardens", total: 619, outOfHoursFee: 0, requestId: "",
         discount: 61.9, amountDue: 557.1, bonusHours: 2, creditsApplied: ["10% off your first morning", "2 free hours (Team Captain)"] },
       { id: "bk-l2", clientToken: MOCK_TWO_TOKEN, status: "confirmed", date: "2026-12-19", startTime: "10:00", endTime: "13:00",
         people: 30, hours: 3, address: "9 Beach Road, Hawks Nest", total: 900, outOfHoursFee: 0, requestId: "" },

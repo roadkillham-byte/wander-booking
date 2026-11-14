@@ -59,7 +59,9 @@ var StoreLogic = (function () {
       people: people,
       hours: hours,
       address: clean(body.address, 200),
-      travelKm: Number(body.travelKm || 0),
+      suburb: clean(body.suburb, 40),
+      // Worked out here from the suburb the client picked or the address they typed, never taken from the page.
+      travelKm: WanderRules.travelKmFor(clean(body.suburb, 40), clean(body.address, 200)),
     };
     if (!out.requestId) return { error: "no-request-id" };
     if (!isDate(out.date) || !isTime(out.startTime)) return { error: "bad-date-or-time" };

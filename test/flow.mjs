@@ -111,7 +111,7 @@ await check("changing a booking changes the one chosen, not the first", async ()
   const date = await page.inputValue('#pick input[name="date"]');
   if (date !== "2026-12-19") throw new Error("seeded from the wrong booking: " + date);
   await page.fill('#pick input[name="date"]', "2026-12-20");
-  await page.click('#pick button[type="submit"]');
+  await submitPick();
   await page.waitForSelector("text=What happens next");
   const queued = db.tables.queue.filter((q) => q.kind === "change").pop();
   const sent = JSON.parse(queued.payload).request;
@@ -141,6 +141,12 @@ const DAY = "2026-12-22";
 const FULL = "2026-12-23";
 // A check that makes the network fail on purpose: the browser's own "failed to load" console lines are expected there.
 const expectFailures = (fn) => async () => { const keep = errors.length; try { await fn(); } finally { errors.length = keep; await page.unroute("**/api?action=request").catch(() => {}); await page.unroute("**/api?action=session").catch(() => {}); } };
+// The suburb pick is required (the store works the travel distance out from it); pick one when the form did not seed it.
+async function submitPick() {
+  const chosen = await page.inputValue('#pick select[name="suburb"]');
+  if (!chosen) await page.selectOption('#pick select[name="suburb"]', "tea-gardens");
+  await page.click('#pick button[type="submit"]');
+}
 const clockTexts = async () => page.$$eval('#pick select[name="startTime"] option', (os) => os.map((o) => ({ v: o.value, off: o.disabled, t: o.textContent })));
 
 await check("the Pick screen shows when the van is free: taken times are switched off and the free window is written out", async () => {
@@ -209,7 +215,7 @@ await check("a reply lost on the way back is not a second hold: Try again resend
   await page.fill('#pick input[name="date"]', "2026-12-28");
   const holdsBefore = db.tables.holds.length;
   await page.route("**/api?action=request", async (route) => { await route.fetch(); await route.abort(); });
-  await page.click('#pick button[type="submit"]');
+  await submitPick();
   await page.waitForSelector("#fail");
   if (db.tables.holds.length !== holdsBefore + 1) throw new Error("the store should have written the hold before the reply was lost");
   await page.unroute("**/api?action=request");
@@ -223,14 +229,14 @@ await check("a store error and a refusal are told apart", expectFailures(async (
   await page.waitForSelector("#pick");
   await page.fill('#pick input[name="date"]', "2026-12-29");
   await page.route("**/api?action=request", (route) => route.fulfill({ contentType: "application/json", body: JSON.stringify({ ok: false, error: "store-error" }) }));
-  await page.click('#pick button[type="submit"]');
+  await submitPick();
   await page.waitForSelector("#fail");
   await page.unroute("**/api?action=request");
   await page.reload();
   await page.waitForSelector("#pick");
   await page.fill('#pick input[name="date"]', "2026-12-29");
   await page.route("**/api?action=request", (route) => route.fulfill({ contentType: "application/json", body: JSON.stringify({ ok: false, error: "bad-people" }) }));
-  await page.click('#pick button[type="submit"]');
+  await submitPick();
   await page.waitForSelector(".notice");
   if (await page.$("#fail")) throw new Error("a refusal was shown as an outage");
   if (!/check/i.test(await page.innerText(".notice"))) throw new Error("no ask to check the details");

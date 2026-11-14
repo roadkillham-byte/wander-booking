@@ -18,6 +18,51 @@ var WanderRules = (function () {
   const TRADING_END = "16:00";
   const TRADING_WORDS = "outside our usual hours (7 am to 4 pm)";
 
+  // Where the van can go and how far each place is from base, one way, in road kilometres. DRAFT (14 Nov 2026): Sam to correct.
+  // Beyond 50 km is never held automatically; "other" (somewhere else) is never guessed.
+  const SUBURBS = [
+    { key: "hawks-nest", label: "Hawks Nest", km: 3 },
+    { key: "jimmys-beach", label: "Jimmys Beach", km: 3 },
+    { key: "winda-woppa", label: "Winda Woppa", km: 4 },
+    { key: "tea-gardens", label: "Tea Gardens", km: 7 },
+    { key: "pindimar", label: "Pindimar", km: 25 },
+    { key: "karuah", label: "Karuah", km: 35 },
+    { key: "bulahdelah", label: "Bulahdelah", km: 40 },
+    { key: "booral", label: "Booral", km: 51 },
+    { key: "medowie", label: "Medowie", km: 55 },
+    { key: "nelson-bay", label: "Nelson Bay", km: 65 },
+    { key: "salamander-bay", label: "Salamander Bay", km: 65 },
+    { key: "forster", label: "Forster", km: 80 },
+    { key: "tuncurry", label: "Tuncurry", km: 80 },
+  ];
+  const squash = (text) => String(text == null ? "" : text).toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+
+  // The one-way kilometres for a booking, or null when it cannot be known. A suburb the client picked wins; "other" is
+  // unknown on purpose. With no pick, the suburbs named in the address are read and the farthest counts, so a street named
+  // after a far suburb is treated as far. The page never decides this: it only says where the client said they are.
+  function travelKmFor(suburb, address) {
+    const pick = squash(suburb);
+    if (pick === "other") return null;
+    const chosen = SUBURBS.find((s) => s.key === pick.replace(/ /g, "-") || squash(s.label) === pick);
+    if (chosen) return chosen.km;
+    const text = " " + squash(address) + " ";
+    const named = SUBURBS.filter((s) => text.indexOf(" " + squash(s.label) + " ") >= 0).map((s) => s.km);
+    return named.length ? Math.max.apply(null, named) : null;
+  }
+
+  // The key of the suburb named in an address (the farthest if several), or "" when none is named.
+  function suburbKeyFor(address) {
+    const text = " " + squash(address) + " ";
+    const named = SUBURBS.filter((s) => text.indexOf(" " + squash(s.label) + " ") >= 0);
+    return named.length ? named.reduce((far, s) => (s.km > far.km ? s : far)).key : "";
+  }
+
+  // Why the distance stops an automatic yes, or "" when it does not.
+  function travelReason(km) {
+    if (km === undefined || km === null || Number.isNaN(Number(km))) return "the address has not been checked for travel distance";
+    return Number(km) > TRAVEL_FREE_KM_ONE_WAY ? "the address is beyond free travel" : "";
+  }
+
   const partsFormat = new Intl.DateTimeFormat("en-AU", {
     timeZone: ZONE, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit",
     hour: "2-digit", minute: "2-digit", second: "2-digit",
@@ -120,7 +165,8 @@ var WanderRules = (function () {
     if (noticeHours(nowIso, request.date, request.startTime) < NOTICE_HOURS) reasons.push("less than 24 hours' notice");
     if (!withinTradingHours(request.startTime, request.hours)) reasons.push(TRADING_WORDS);
     if (!slotIsFree(request.date, request.startTime, request.hours, others)) reasons.push("the time is not free on the van");
-    if (Number(request.travelKm || 0) > TRAVEL_FREE_KM_ONE_WAY) reasons.push("the address is beyond free travel");
+    const travel = travelReason(request.travelKm);
+    if (travel) reasons.push(travel);
     return { decision: reasons.length === 0 ? "held" : "requested", reasons };
   }
 
@@ -133,7 +179,8 @@ var WanderRules = (function () {
     if (noticeHours(nowIso, change.date, change.startTime) < NOTICE_HOURS) reasons.push("the new time is less than 24 hours away");
     if (!withinTradingHours(change.startTime, change.hours)) reasons.push("the new time is " + TRADING_WORDS);
     if (!slotIsFree(change.date, change.startTime, change.hours, others)) reasons.push("the new time is not free on the van");
-    if (Number(change.travelKm || 0) > TRAVEL_FREE_KM_ONE_WAY) reasons.push("the address is beyond free travel");
+    const travel = travelReason(change.travelKm);
+    if (travel) reasons.push(travel);
     return { decision: reasons.length === 0 ? "applied" : "requested", reasons };
   }
 
@@ -158,7 +205,7 @@ var WanderRules = (function () {
   }
 
   return {
-    sameAgainDate, sydneyDate, addDays,
+    sameAgainDate, sydneyDate, addDays, SUBURBS, travelKmFor, suburbKeyFor,
     ZONE, DEFAULT_START, TRAVEL_FREE_KM_ONE_WAY, NOTICE_HOURS, VAN_GAP_MINUTES, STALE_AFTER_HOURS, TRADING_START, TRADING_END, withinTradingHours,
     sydneyEpoch, instantOf, noticeHours, replyWithinHours, slotIsFree, isStale, decideHold, decideChange, decideCancel,
   };
