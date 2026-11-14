@@ -73,3 +73,14 @@ test("the friend's note tells them about their 10% and starts hidden", () => {
   assert.match(note[1], /\bhidden\b/, "it is hidden until the form's referral question is set up");
   assert.equal(note[2], "A friend sent you, so your first morning is 10% off. Send your details and we will thank them.");
 });
+
+const { prefilledFormUrl } = require("./referral.js");
+
+test("prefilledFormUrl adds each answer the page knows, and leaves out a missing entry id or an empty answer", () => {
+  const base = "https://docs.google.com/forms/d/e/abc/viewform";
+  assert.equal(prefilledFormUrl(base, []), base);
+  assert.equal(prefilledFormUrl(base, [["111", "Office Club 4-Pack"]]), base + "?usp=pp_url&entry.111=Office%20Club%204-Pack");
+  assert.equal(prefilledFormUrl(base, [["111", "Office Club 4-Pack"], ["222", "ABC"]]),
+    base + "?usp=pp_url&entry.111=Office%20Club%204-Pack&entry.222=ABC");
+  assert.equal(prefilledFormUrl(base, [["", "Office Club 4-Pack"], ["333", ""], [null, "x"]]), base);
+});
