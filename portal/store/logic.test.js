@@ -14,6 +14,7 @@ function makeDb(env) {
   Object.keys(S.TABLES).forEach((t) => (tables[t] = []));
   const settings = Object.assign({ APP_TOKEN: APP }, env || {});
   let locked = 0;
+  let keyCount = 0;
   return {
     tables,
     read: (t) => JSON.parse(JSON.stringify(tables[t])),
@@ -21,6 +22,7 @@ function makeDb(env) {
     append: (t, row) => { tables[t].push(JSON.parse(JSON.stringify(row))); },
     lock: (fn) => { locked += 1; try { return fn(); } finally { locked -= 1; } },
     env: (name) => settings[name],
+    newKey: () => "NEWKEY" + String(++keyCount).padStart(3, "0") + "abcdefghijklmnopqrstuvwxyz0123456789",
   };
 }
 
@@ -629,4 +631,106 @@ test("a hold with no suburb and no known place in the address is requested, not 
   publish(db);
   assert.equal(S.request(db, { ...hold("TOKEN-ALEX-0000000000000001", "req-x", "2026-12-19", "09:00"), address: "" }, NOW).outcome, "requested");
   assert.equal(S.request(db, { ...hold("TOKEN-ALEX-0000000000000001", "req-y", "2026-12-20", "09:00"), address: "1 Road, Wyong", suburb: "other" }, NOW).outcome, "requested");
+});
+
+const newhold = (over = {}) => ({
+  requestId: "nh-1", name: "Jo Park", phone: "0400 111 222", email: "Jo@Example.com", date: "2026-12-19", startTime: "09:00",
+  people: 20, hours: 3, suburb: "tea-gardens", address: "5 Beach Road", shownTotal: 619, shownFee: 0, source: "instagram", ...over,
+});
+
+test("a new client's request that fits the rules is held, and they get their own private key", () => {
+  const db = makeDb();
+  publish(db);
+  const r = S.newHold(db, newhold(), NOW);
+  assert.equal(r.ok, true);
+  assert.equal(r.outcome, "held");
+  assert.ok(r.key.length >= 32);
+  assert.equal(db.tables.holds.length, 1);
+  assert.equal(db.tables.holds[0].clientToken, r.key);
+  const q = db.tables.queue.filter((x) => x.kind === "newhold");
+  assert.equal(q.length, 1);
+  assert.equal(JSON.parse(q[0].payload).request.email, "jo@example.com");
+  const sess = S.session(db, r.key, NOW);
+  assert.equal(sess.ok, true);
+  assert.equal(sess.client.firstName, "Jo");
+  assert.equal(sess.bookings[0].status, "held");
+});
+
+test("a far suburb, a taken slot and an unknown place are requested, never held, and still get a key and reach Sam", () => {
+  const db = makeDb();
+  publish(db);
+  assert.equal(S.newHold(db, newhold({ requestId: "a", suburb: "forster" }), NOW).outcome, "requested");
+  assert.equal(S.newHold(db, newhold({ requestId: "b", suburb: "other", email: "b@example.com" }), NOW).outcome, "requested");
+  assert.equal(S.newHold(db, newhold({ requestId: "c", email: "c@example.com" }), NOW).outcome, "held");
+  const taken = S.newHold(db, newhold({ requestId: "d", email: "d@example.com", startTime: "10:00" }), NOW);
+  assert.equal(taken.outcome, "requested");
+  assert.equal(db.tables.holds.length, 1);
+  assert.equal(db.tables.queue.filter((x) => x.kind === "newhold").length, 4);
+  assert.ok(taken.key && S.session(db, taken.key, NOW).ok);
+});
+
+test("a bad request writes nothing: no name, a short phone, a bad email, bad people, a bad date", () => {
+  const db = makeDb();
+  publish(db);
+  for (const bad of [{ name: "" }, { phone: "123" }, { email: "nope" }, { people: 0 }, { date: "5/12/2026" }, { requestId: "" }]) {
+    assert.equal(S.newHold(db, newhold(bad), NOW).ok, false);
+  }
+  assert.equal(db.tables.queue.length, 0);
+  assert.equal(db.tables.newclients.length, 0);
+});
+
+test("a bot that fills the hidden box stores nothing", () => {
+  const db = makeDb();
+  publish(db);
+  const r = S.newHold(db, newhold({ website: "http://spam.example" }), NOW);
+  assert.deepEqual([r.ok, r.outcome, r.key], [true, "requested", undefined]);
+  assert.equal(db.tables.queue.length, 0);
+});
+
+test("a resend of the same request id returns the same answer and key, and writes once", () => {
+  const db = makeDb();
+  publish(db);
+  const first = S.newHold(db, newhold(), NOW);
+  const again = S.newHold(db, newhold(), NOW);
+  assert.deepEqual(again, first);
+  assert.equal(db.tables.holds.length, 1);
+  assert.equal(db.tables.queue.length, 1);
+});
+
+test("one email can make three new requests a day, not a fourth", () => {
+  const db = makeDb();
+  publish(db);
+  for (const id of ["r1", "r2", "r3"]) assert.equal(S.newHold(db, newhold({ requestId: id, date: "2026-12-2" + id.slice(1) }), NOW).ok, true);
+  assert.deepEqual(S.newHold(db, newhold({ requestId: "r4", date: "2026-12-24" }), NOW), { ok: false, error: "too-many" });
+});
+
+test("the new client's key keeps working across publishes until Coffee Van lists that client, then the provisional row goes", () => {
+  const db = makeDb();
+  publish(db);
+  const r = S.newHold(db, newhold(), NOW);
+  publish(db); // the app has not imported the request yet: its snapshot lacks this client
+  assert.equal(S.session(db, r.key, NOW).ok, true);
+  assert.equal(db.tables.newclients.length, 1);
+  publish(db, { clients: [{ token: r.key, firstName: "Jo", referralCode: "J1" }] });
+  assert.equal(db.tables.newclients.length, 0);
+  assert.equal(S.session(db, r.key, NOW).ok, true);
+});
+
+test("the app is handed the new client's details with the request, and the key", () => {
+  const db = makeDb();
+  publish(db);
+  const r = S.newHold(db, newhold(), NOW);
+  const items = S.pending(db, APP).items.filter((i) => i.kind === "newhold");
+  assert.equal(items.length, 1);
+  assert.deepEqual([items[0].clientToken, items[0].name, items[0].email, items[0].suburb, items[0].decision], [r.key, "Jo Park", "jo@example.com", "tea-gardens", "held"]);
+});
+
+test("open times need no token and list what a hold would be given, the same as a signed-in client's list", () => {
+  const db = makeDb();
+  publish(db);
+  const open = S.openTimes(db, { hours: 3 }, NOW);
+  const signedIn = S.availability(db, { k: "TOKEN-ALEX-0000000000000001", hours: 3 }, NOW);
+  assert.equal(open.ok, true);
+  assert.deepEqual(open.days, signedIn.days);
+  assert.equal(S.openTimes(db, { hours: 9 }, NOW).error, "bad-hours");
 });

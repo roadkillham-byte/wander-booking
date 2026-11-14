@@ -25,6 +25,8 @@ var StoreLogic = (function () {
     holds: ["requestId", "id", "clientToken", "date", "startTime", "endTime", "people", "hours", "address", "total", "outOfHoursFee", "createdAt"],
     queue: ["id", "kind", "receivedAt", "clientToken", "payload", "acked"],
     credits: ["clientToken", "kind", "label", "expiresAt"],
+    // A new client made by the booking page before Coffee Van knows them: their private key works from the first email.
+    newclients: ["token", "firstName", "requestId", "createdAt"],
     meta: ["key", "value"],
   };
 
@@ -127,6 +129,10 @@ var StoreLogic = (function () {
     if (!token) return null;
     var rows = db.read("clients");
     for (var i = 0; i < rows.length; i++) if (rows[i].token === token) return rows[i];
+    var fresh = db.read("newclients");
+    for (var j = 0; j < fresh.length; j++) {
+      if (fresh[j].token === token) return { token: fresh[j].token, firstName: fresh[j].firstName, referralCode: "", quote: "", referrals: "[]", club: "" };
+    }
     return null;
   }
 
@@ -224,6 +230,11 @@ var StoreLogic = (function () {
       db.write("bookings", bookings);
       db.write("busy", busy);
       db.write("credits", credits);
+      // A provisional client stays until Coffee Van lists them (or two weeks pass), so their key never stops working in between.
+      var listed = {};
+      clients.forEach(function (c) { listed[c.token] = true; });
+      var provisionalCutoff = Date.parse(now) - 14 * 24 * 60 * 60 * 1000;
+      db.write("newclients", db.read("newclients").filter(function (p) { return !listed[p.token] && Date.parse(p.createdAt) >= provisionalCutoff; }));
       var acked = {};
       db.read("queue").forEach(function (q) { if (String(q.acked) === "yes") acked[q.id] = true; });
       var today = String(snapshot.asOf).slice(0, 10); // the UTC date is never later than the Sydney date: a hold is only dropped once its day is certainly past
@@ -421,6 +432,69 @@ var StoreLogic = (function () {
     });
   }
 
+  // A first-time client's request from the booking page, with no key yet. It runs the same rules as a portal hold, makes the
+  // client's private key here (so the first email can carry it), and queues the request for Coffee Van, which makes the client.
+  // Held or not, the request reaches Sam; only a held one blocks the slot. A hidden "website" box catches bots.
+  var NEWHOLD_PER_EMAIL_PER_DAY = 3;
+  function newHold(db, body, now) {
+    if (!body || typeof body !== "object") return { ok: false, error: "bad-request" };
+    if (clean(body.website, 80)) return { ok: true, outcome: "requested" };
+    var requestId = clean(body.requestId, 80);
+    if (!requestId) return { ok: false, error: "no-request-id" };
+    var name = clean(body.name, 80);
+    var phone = clean(body.phone, 30);
+    var email = clean(body.email, 120).toLowerCase();
+    if (!name) return { ok: false, error: "no-name" };
+    if (phone.replace(/\D/g, "").length < 8) return { ok: false, error: "bad-phone" };
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return { ok: false, error: "bad-email" };
+    var parsed = readRequest(body);
+    if (parsed.error) return { ok: false, error: parsed.error };
+    var fields = parsed.value;
+    if (typeof db.newKey !== "function") return { ok: false, error: "store-error" };
+
+    return db.lock(function () {
+      var queue = db.read("queue");
+      var previous = queue.filter(function (q) { return q.id === requestId && q.kind === "newhold"; })[0];
+      if (previous) {
+        var stored = JSON.parse(previous.payload || "{}").response;
+        if (stored) return stored;
+      }
+      var cutoff = Date.parse(now) - 24 * 60 * 60 * 1000;
+      var today = 0;
+      queue.forEach(function (q) {
+        if (q.kind !== "newhold" || Date.parse(q.receivedAt) < cutoff) return;
+        try { if (JSON.parse(q.payload).request.email === email) today += 1; } catch (e) { /* an unreadable row counts for nobody */ }
+      });
+      if (today >= NEWHOLD_PER_EMAIL_PER_DAY) return { ok: false, error: "too-many" };
+
+      var key = db.newKey();
+      var asOf = metaValue(db, "asOf");
+      var held = WanderRules.decideHold({ date: fields.date, startTime: fields.startTime, hours: fields.hours, travelKm: fields.travelKm }, busyOn(db, fields.date), asOf, now);
+      var reply = WanderRules.replyWithinHours(now, fields.date, fields.startTime);
+      var response = { ok: true, outcome: held.decision, replyWithinHours: reply, key: key, message: copyFor(held.decision === "held" ? "held" : "requested", reply) };
+      if (held.decision === "held") {
+        var holdId = "hold-" + requestId;
+        db.append("holds", {
+          requestId: requestId, id: holdId, clientToken: key, date: fields.date, startTime: fields.startTime,
+          endTime: endTimeFor(fields.startTime, fields.hours), people: fields.people, hours: fields.hours,
+          address: fields.address, total: shownBase(fields), outOfHoursFee: Number(fields.shownFee || 0), createdAt: now,
+        });
+        response.bookingId = holdId;
+      }
+      var first = name.split(/\s+/)[0];
+      db.append("newclients", { token: key, firstName: clean(first, 40), requestId: requestId, createdAt: now });
+      fields.name = name;
+      fields.phone = phone;
+      fields.email = email;
+      fields.decision = held.decision;
+      fields.reasons = held.reasons;
+      ["source", "medium", "campaign", "heard", "referral", "package"].forEach(function (k) { fields[k] = clean(body[k], 40); });
+      fields.offers = body.offers === true;
+      db.append("queue", { id: requestId, kind: "newhold", receivedAt: now, clientToken: key, payload: JSON.stringify({ request: fields, response: response }), acked: "no" });
+      return response;
+    });
+  }
+
   var AVAILABILITY_DAYS = 60;
   var FIRST_START_MINUTES = 6 * 60;
   var LAST_START_MINUTES = 18 * 60;
@@ -443,6 +517,21 @@ var StoreLogic = (function () {
     if (!client) return { ok: false, error: "not-found" };
     var hours = Number(body.hours);
     if (CATERING_HOURS.indexOf(hours) < 0) return { ok: false, error: "bad-hours" };
+    var own = null;
+    if (body.bookingId) {
+      own = db.read("bookings").filter(function (b) { return b.id === clean(body.bookingId, 80) && b.clientToken === client.token; })[0] || null;
+    }
+    return availabilityCore(db, hours, own, now);
+  }
+
+  // The same list for someone with no key yet (the booking page): nothing of anyone's is left out.
+  function openTimes(db, body, now) {
+    var hours = Number(body && body.hours);
+    if (CATERING_HOURS.indexOf(hours) < 0) return { ok: false, error: "bad-hours" };
+    return availabilityCore(db, hours, null, now);
+  }
+
+  function availabilityCore(db, hours, own, now) {
     var asOf = metaValue(db, "asOf");
     var today = WanderRules.sydneyDate(now);
     var out = {
@@ -450,10 +539,6 @@ var StoreLogic = (function () {
       window: { from: today, through: WanderRules.addDays(today, AVAILABILITY_DAYS - 1) }, days: {},
     };
     if (out.stale || !today) return out;
-    var own = null;
-    if (body.bookingId) {
-      own = db.read("bookings").filter(function (b) { return b.id === clean(body.bookingId, 80) && b.clientToken === client.token; })[0] || null;
-    }
     var byDate = {};
     function add(date, row) { (byDate[date] = byDate[date] || []).push(row); }
     db.read("busy").forEach(function (b) {
@@ -530,7 +615,7 @@ var StoreLogic = (function () {
     TABLES: TABLES, CONTRACT_VERSION: CONTRACT_VERSION, EVENT_TYPES: EVENT_TYPES,
     event: event, funnel: funnel,
     health: health, publish: publish, pending: pending, ack: ack, prices: prices, session: session, request: request,
-    availability: availability, failureAlert: failureAlert,
+    availability: availability, openTimes: openTimes, newHold: newHold, failureAlert: failureAlert,
     endTimeFor: endTimeFor, readRequest: readRequest,
   };
 })();

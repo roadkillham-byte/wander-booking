@@ -50,6 +50,8 @@ function storeDb_() {
       try { return fn(); } finally { lock.releaseLock(); }
     },
     env: function (name) { return PropertiesService.getScriptProperties().getProperty(name) || ''; },
+    // A private key for a new client: two random UUIDs, hyphens dropped (64 characters).
+    newKey: function () { return (Utilities.getUuid() + Utilities.getUuid()).replace(/-/g, ''); },
   };
 }
 
@@ -97,6 +99,9 @@ function doPost(e) {
     if (action === 'session') return storeJson_(StoreLogic.session(db, body.k, now));
     if (action === 'request') return storeJson_(StoreLogic.request(db, body, now));
     if (action === 'availability') return storeJson_(StoreLogic.availability(db, body, now));
+    // Public, for a first-time client on the booking page (no key yet): free start times, and the request itself.
+    if (action === 'opentimes') return storeJson_(StoreLogic.openTimes(db, body, now));
+    if (action === 'newhold') return storeJson_(StoreLogic.newHold(db, body, now));
     if (action === 'event') return storeJson_(StoreLogic.event(db, body, now));
     if (action === 'funnel') return storeJson_(StoreLogic.funnel(db, body.k, now, body.days));
     if (action === 'publish') return storeJson_(StoreLogic.publish(db, body.k, body.snapshot, now));

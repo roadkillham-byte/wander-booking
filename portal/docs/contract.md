@@ -90,6 +90,20 @@ Rules applied by the store (shared logic, `rules.js`): notice of 24 hours or mor
 (every day, 07:00 to 16:00), slot free on the van with a 60-minute gap, address within 50 km (the page sends the `suburb` the client picked; the store works the distance out from it, or from the suburb named in `address`, and never trusts a distance sent by the page; an unknown place or "other" is `requested`). Any miss is `requested`, never an error. A hold is checked against published busy times **and** holds
 still waiting in the store, under a lock, so two clients cannot hold the same slot.
 
+## First-time clients (public, no key)
+
+For someone on the booking page who has no key yet. Both routes are public; `newhold` is limited to 3 requests per email per day and
+drops any request with the hidden `website` box filled.
+
+`POST ?action=opentimes` with body `{hours}` -> the same `days` map as `availability`, with nothing left out.
+
+`POST ?action=newhold` with body `{requestId, name, phone, email, date, startTime, people, hours, suburb, address, shownTotal, shownFee,
+source, medium, campaign, heard, referral, package, offers, website}` -> `{ok, outcome: held | requested, key, bookingId?, replyWithinHours, message}`.
+The store runs the hold rules (travel from `suburb` or the address, as for a portal hold), makes the client's private `key` (64 random
+characters), blocks the slot only when held, and queues a `newhold` item for Coffee Van carrying `clientToken: key` and the details.
+The key opens the portal at once (`session`); Coffee Van adopts the same key for the client it creates, and the store drops its provisional
+copy once a publish lists that key. Errors: `no-name`, `bad-phone`, `bad-email`, `no-request-id`, the usual request errors, `too-many`.
+
 ## Coffee Van pull and ack (app token)
 
 `POST ?action=pending` with body `{k: APP_TOKEN}` → `{ok, items:[...]}`. Each item is one request with its `kind` and fields plus `clientToken`.
