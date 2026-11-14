@@ -686,7 +686,7 @@
 
   function refresh() {
     return WanderApi.session(state.k).then(function (s) {
-      if (s && s.ok) state.session = s;
+      if (s && s.ok) { state.session = s; state.sessionK = state.k; }
       return s;
     });
   }
@@ -697,7 +697,17 @@
       showPage(shell('<section class="rise d1"><h2 class="rule">Open your link</h2><p>Your morning link is in the email we sent you. Open it from there and this page will know who you are.</p></section>'));
       return;
     }
+    // Moving around inside the page shows the next screen at once from what is already loaded, then looks again in the
+    // background; a screen that is a form is never redrawn under the client's fingers.
+    var cached = !!(state.session && state.prices && state.sessionK === state.k);
+    var before = cached ? JSON.stringify(state.session) : "";
+    if (cached) showRoute();
     refresh().then(function (s) {
+      if (cached) {
+        var v = state.route.v;
+        if (s && s.ok && JSON.stringify(state.session) !== before && v !== "pick" && v !== "change") showRoute();
+        return;
+      }
       if (WanderApi.unreachable(s)) {
         showPage(shell('<section class="fail"><h2 class="rule">We are not answering just yet</h2><p>Our booking system is not answering right now. Your link is fine. Try again in a minute, or ring us.</p>' +
           '<button type="button" class="go" id="reload">Try again</button></section>'));
