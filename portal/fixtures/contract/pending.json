@@ -1,0 +1,4 @@
+{ "ok": true, "items": [
+  { "id": "req-client-0001", "kind": "hold", "receivedAt": "2026-12-01T07:10:00+11:00", "clientToken": "CLIENT-TOKEN-FIXTURE",
+    "date": "2026-12-12", "startTime": "09:00", "people": 20, "hours": 3, "address": "3 Lake Road, Tea Gardens" }
+] }
