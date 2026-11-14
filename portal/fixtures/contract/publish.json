@@ -1,0 +1,64 @@
+{
+  "k": "APP-TOKEN-FIXTURE",
+  "snapshot": {
+    "asOf": "2026-12-01T06:00:00+11:00",
+    "clients": [
+      {
+        "token": "CLIENT-TOKEN-FIXTURE",
+        "firstName": "Alex",
+        "referralCode": "K7M2-QXTP",
+        "referrals": [
+          {
+            "firstName": "Jo",
+            "status": "booked"
+          }
+        ]
+      }
+    ],
+    "bookings": [
+      {
+        "id": "bk-101",
+        "clientToken": "CLIENT-TOKEN-FIXTURE",
+        "status": "confirmed",
+        "date": "2026-12-05",
+        "startTime": "09:00",
+        "endTime": "12:00",
+        "people": 20,
+        "hours": 3,
+        "address": "1 Main Street, Tea Gardens",
+        "total": 619,
+        "outOfHoursFee": 0,
+        "requestId": null,
+        "discount": 62,
+        "amountDue": 557,
+        "bonusHours": 2,
+        "creditsApplied": [
+          "10% off your first morning",
+          "2 free hours (Team Captain)"
+        ]
+      }
+    ],
+    "busy": [
+      {
+        "date": "2026-12-05",
+        "startTime": "09:00",
+        "endTime": "12:00"
+      }
+    ],
+    "credits": [
+      {
+        "clientToken": "CLIENT-TOKEN-FIXTURE",
+        "kind": "referral",
+        "label": "10% off your next booking",
+        "expiresAt": "2027-11-13"
+      }
+    ],
+    "packs": [],
+    "reward": {
+      "referrerPercent": 10,
+      "friendPercent": 10,
+      "captainEvery": 3,
+      "captainFreeHours": 2
+    }
+  }
+}

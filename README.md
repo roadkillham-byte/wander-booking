@@ -14,3 +14,10 @@ Static page for Wander Coffee Van, hosted on GitHub Pages: https://roadkillham-b
 Tests: `node --test` in this folder (no install needed).
 
 Turning tracking on: deploy the Google script with a `SITE_KEY`, set both values in `config.js`, push.
+
+## One site (14 Nov 2026)
+
+The customer portal now lives in `portal/` (it used to be the `wander-customer-portal` repo, history kept). One link serves everyone:
+`https://roadkillham-byte.github.io/wander-booking/` is the booking page; a client who opens it with their private key
+(`#k=...`) is sent straight to `portal/`. The store's Apps Script source is `portal/store/`; its tests, mock and browser
+journey are in `portal/` (`cd portal && node --test`). The old portal address keeps working through a redirect page.
