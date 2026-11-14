@@ -17,6 +17,9 @@ function storeDb_() {
       sh.getRange(1, 1, 1, headers.length).setValues([headers]);
       sh.setFrozenRows(1);
     }
+    // A table that gained a column keeps its sheet: bring the header row up to date so the labels match the data.
+    var have = sh.getRange(1, 1, 1, headers.length).getValues()[0];
+    if (have.join('|') !== headers.join('|')) sh.getRange(1, 1, 1, headers.length).setValues([headers]);
     return { sh: sh, headers: headers };
   }
   return {

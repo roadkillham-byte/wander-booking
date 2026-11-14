@@ -734,3 +734,19 @@ test("open times need no token and list what a hold would be given, the same as 
   assert.deepEqual(open.days, signedIn.days);
   assert.equal(S.openTimes(db, { hours: 9 }, NOW).error, "bad-hours");
 });
+
+test("a Square pay link and the paid flag reach the client's session, and a link that is not a Square address does not", () => {
+  const db = makeDb();
+  const base = { clientToken: ALEX, status: "confirmed", date: "2026-12-05", startTime: "09:00", endTime: "12:00", people: 20, hours: 3,
+    address: "1 Main Street, Tea Gardens", total: 619, outOfHoursFee: 0, requestId: "", discount: 0, amountDue: 619, bonusHours: 0, creditsApplied: [] };
+  publish(db, { bookings: [
+    Object.assign({ id: "bk-1", payLink: "https://square.link/u/abc123" }, base),
+    Object.assign({ id: "bk-2", payLink: "https://evil.example/pay", paid: true }, base),
+    Object.assign({ id: "bk-3" }, base),
+  ] });
+  const view = S.session(db, ALEX, NOW);
+  const by = (id) => view.bookings.find((b) => b.id === id);
+  assert.deepEqual([by("bk-1").payLink, by("bk-1").paid], ["https://square.link/u/abc123", false]);
+  assert.deepEqual([by("bk-2").payLink, by("bk-2").paid], ["", true]);
+  assert.deepEqual([by("bk-3").payLink, by("bk-3").paid], ["", false]);
+});

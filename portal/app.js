@@ -198,11 +198,20 @@
       (Number(b.bonusHours) > 0 ? ", plus " + esc(b.bonusHours) + " free hours" : "") + ". Incl. GST.</p>";
   }
 
+  // Paying: a button to the Square page once Coffee Van has made the link, a thank-you once it is paid. Bank transfer stays by reply.
+  function payHtml(b) {
+    if (b.status !== "confirmed") return "";
+    if (b.paid) return '<p class="note">Paid. Thank you.</p>';
+    if (!b.payLink) return "";
+    return '<p><a class="go" href="' + esc(b.payLink) + '" rel="noopener">Pay ' + exact(b.amountDue) + ' by card</a></p>' +
+      '<p class="note">Prefer a bank transfer? Reply to your confirmation email and we will send the details.</p>';
+  }
+
   function renderBookingCard(b, isHome) {
     var inner = '<section class="rise d1"><h2 class="rule">' + (b.status === "confirmed" ? "You are confirmed" : "Your morning is held") + "</h2>" +
       '<div class="ticket"><dl><dt>Date</dt><dd>' + esc(dayName(b.date)) + "</dd><dt>Start</dt><dd>" + esc(clock(b.startTime)) +
       "</dd><dt>People</dt><dd>" + esc(b.people) + "</dd><dt>Hours</dt><dd>" + esc(b.hours) + "</dd><dt>Where</dt><dd>" + esc(b.address) +
-      '</dd></dl>' + priceHtml(b) + "</div>" +
+      '</dd></dl>' + priceHtml(b) + "</div>" + payHtml(b) +
       '<p class="note">' + (b.status === "confirmed"
         ? "We will text you the day before. Need to change it? Use the links below."
         : "We reply within 24 hours to confirm. Nothing is charged before we confirm.") + "</p>" +
