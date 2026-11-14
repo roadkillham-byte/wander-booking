@@ -30,5 +30,6 @@ window.WANDER_PROOF = [];
 // One real client story for the "Good to know" box: [{ who: "Name, business", problem: "...", solution: "...", result: "...", price: "..." }]. Leave empty until there is one.
 window.WANDER_CASES = [];
 
-// A real price to compare with, shown under the quote only when Wander is cheaper: { label: "Typical event caterer", perPerson: 0 } (dollars a head).
-window.WANDER_ANCHOR = { label: "", perPerson: 0 };
+// A real coffee-only package to compare with, shown under the price once perPerson is set (dollars a head). When Wander costs more, the
+// page says the difference buys a full bowl for every person. wontInclude: what they usually leave out, e.g. ["food", "a babyccino for each child"]. Only list what is true.
+window.WANDER_ANCHOR = { label: "", perPerson: 0, wontInclude: [] };
