@@ -40,5 +40,5 @@ window.WANDER_CASES = [];
 // "Premium high tea" $45 a head.
 window.WANDER_ANCHORS = [
   { label: "A coffee-only cart", coffeeOnly: true, tiers: [{ guests: 50, hours: 2, price: 300 }, { guests: 100, hours: 3, price: 550 }, { guests: 200, hours: 4, price: 1000 }, { guests: 300, hours: 24, price: 1500 }] },
-  { label: "A premium high tea package", perPerson: 45 },
+  { label: "A basic package", perPerson: 45 },
 ];
