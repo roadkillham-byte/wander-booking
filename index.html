@@ -34,7 +34,7 @@ main{position:relative;z-index:1;margin-top:-34px;padding-bottom:64px}
 .card{background:var(--paper);border:2px solid var(--ink);border-radius:14px;padding:22px;box-shadow:6px 6px 0 var(--ink)}
 h2{font-family:var(--hand);font-weight:400;font-size:34px;line-height:1;margin:0 0 14px;color:var(--forest)}
 h2 span{color:var(--orange)}
-label{display:block;font-size:14px;letter-spacing:.04em;text-transform:uppercase;color:var(--forest);margin:14px 0 6px}
+label{display:block;font-size:16px;letter-spacing:.04em;text-transform:uppercase;color:var(--forest);margin:14px 0 6px}
 input,textarea{width:100%;font:inherit;color:var(--ink);background:#fff;border:2px solid var(--line);border-radius:10px;padding:12px 12px}
 input:focus,textarea:focus,button:focus-visible,.hours input:focus-visible+span{outline:3px solid var(--orange);outline-offset:2px}
 textarea{min-height:76px;resize:vertical}
@@ -44,7 +44,7 @@ textarea{min-height:76px;resize:vertical}
 .hours label{margin:0;text-transform:none;letter-spacing:0}
 .hours input{position:absolute;opacity:0;width:1px;height:1px}
 .hours span{display:block;text-align:center;border:2px solid var(--line);border-radius:10px;padding:10px 0;background:#fff;font-size:18px;cursor:pointer;transition:font-size .15s ease,padding .15s ease}
-.hours small{display:block;font-size:11px;color:var(--line)}
+.hours small{display:block;font-size:13px;color:var(--line)}
 .hours input:checked+span{background:var(--forest);border-color:var(--forest);color:var(--cream);font-size:34px;font-weight:700;padding:14px 0}
 .hours input:checked+span small{color:#cfe0c4}
 .pkg{display:grid;grid-template-columns:1fr 1fr;gap:8px}
@@ -57,14 +57,14 @@ textarea{min-height:76px;resize:vertical}
 .tag::before{content:"";position:absolute;left:12px;top:50%;width:12px;height:12px;margin-top:-6px;border-radius:50%;background:var(--cream);border:2px solid var(--ink)}
 .tag .amt{font-family:var(--hand);font-size:64px;line-height:.9}
 .tag .amt .cur{font-family:var(--sans);font-weight:700}
-.tag .sub{font-size:15px}
-.fine{font-size:14px;color:var(--line);margin:10px 0 0}
+.tag .sub{font-size:17px}
+.fine{font-size:16px;color:var(--line);margin:10px 0 0}
 ul{list-style:none;margin:0;padding:0}
 li{padding:9px 0 9px 30px;border-bottom:1.5px dashed rgba(116,93,78,.45);position:relative}
 li:last-child{border-bottom:0}
 li::before{content:"";position:absolute;left:4px;top:15px;width:14px;height:8px;border-left:3px solid var(--sage-deep);border-bottom:3px solid var(--sage-deep);transform:rotate(-45deg)}
 .promise li::before{border-color:var(--orange)}
-.check{display:flex;gap:10px;align-items:flex-start;margin:16px 0 0;text-transform:none;letter-spacing:0;font-size:15px;color:var(--ink)}
+.check{display:flex;gap:10px;align-items:flex-start;margin:16px 0 0;text-transform:none;letter-spacing:0;font-size:17px;color:var(--ink)}
 .check input{width:22px;height:22px;flex:none;margin-top:1px;accent-color:var(--forest)}
 .go{display:block;text-align:center;text-decoration:none;width:100%;margin-top:18px;font-family:var(--hand);font-size:30px;line-height:1;color:var(--cream);background:var(--forest);border:2px solid var(--ink);border-radius:12px;padding:14px 16px 16px;box-shadow:4px 4px 0 var(--ink);transition:transform .12s,box-shadow .12s}
 .go:hover{transform:translate(2px,2px);box-shadow:2px 2px 0 var(--ink)}
@@ -76,7 +76,8 @@ button[disabled]{opacity:.6;cursor:progress}
 .msg{margin-top:14px;padding:12px 14px;border-radius:10px;border:2px solid var(--ink);background:#fff3e2}
 .done{text-align:center;padding:26px 10px}
 .done .big{font-family:var(--hand);font-size:54px;line-height:1;color:var(--forest)}
-footer{font-size:14px;color:var(--line);padding:0 0 40px}
+footer{font-size:16px;color:var(--line)}
+footer.wrap{margin-top:56px;padding-bottom:40px}
 footer a{color:var(--forest)}
 [hidden]{display:none!important}
 .rise{opacity:0;transform:translateY(14px);animation:rise .6s cubic-bezier(.2,.8,.2,1) forwards}
@@ -86,14 +87,16 @@ footer a{color:var(--forest)}
 
 .pack{margin-top:16px;border:2px dashed var(--forest);border-radius:12px;padding:14px;background:#fff9ef}
 .packhead{font-family:var(--hand);font-size:26px;line-height:1.1;margin-bottom:8px}
-.badge{font-family:var(--body);font-size:11px;letter-spacing:.12em;text-transform:uppercase;background:var(--orange);color:#fff;padding:2px 8px;border-radius:999px;vertical-align:middle}
+.badge{font-family:var(--body);font-size:13px;letter-spacing:.12em;text-transform:uppercase;background:var(--orange);color:#fff;padding:2px 8px;border-radius:999px;vertical-align:middle}
 .cmp{width:100%;border-collapse:collapse;font-size:15px}
 .cmp th,.cmp td{padding:6px 8px;border-bottom:1px solid #e3d8c8;text-align:left;vertical-align:top}
 .cmp thead th{font-size:13px;color:var(--sage-deep)}
 .cmp tbody th{font-weight:400;color:var(--ink)}
 .cmp td:last-child{background:#eef3e6}
 .packline{margin:10px 0 4px;font-weight:700;color:var(--forest)}
-.guar{margin:14px 0 8px;font-size:15px}
+.guar{margin:14px 0 8px;font-size:17px}
+.hp{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
+.details-h{margin-top:22px}
 </style>
 </head>
 <body>
@@ -107,7 +110,7 @@ footer a{color:var(--forest)}
 
 <main class="wrap">
   <div class="grid">
-    <section class="card rise d3" id="form">
+    <form class="card rise d3" id="form" novalidate>
       <h2>Your <span>quote</span></h2>
       <div class="row">
         <div><label for="people">People</label><input id="people" name="people" type="number" inputmode="numeric" min="1" max="500" value="20" required></div>
@@ -120,7 +123,7 @@ footer a{color:var(--forest)}
         <label><input type="radio" name="hours" value="5"><span>5</span></label>
         <label><input type="radio" name="hours" value="6"><span>6</span></label>
       </div>
-      <div id="pkg-wrap" hidden>
+      <div id="pkg-wrap">
       <label id="pkg-label">What are you booking?</label>
       <div class="pkg" role="radiogroup" aria-labelledby="pkg-label">
         <label><input type="radio" name="package" value="Single morning" checked><span>Single morning</span></label>
@@ -147,12 +150,23 @@ footer a{color:var(--forest)}
         <p class="fine">Paid up front. Spend your bonus time on any of your four mornings, 30 minutes at a time. Pick the dates now or any time in 12 months, with 24 hours' notice. Cancel a morning with 24 hours' notice and it moves to another date.</p>
       </div>
       <p class="guar"><strong>Our promise:</strong> 15 minutes late or more? Your first hour is free. We don't turn up? Full refund, no ifs or buts. Coffee not quite right? Remade or refunded on the spot.</p>
-      <a class="go" id="go" href="#" rel="noopener">Email me my price and call me today</a>
+      <h2 class="details-h">Your <span>details</span></h2>
+      <div class="row">
+        <div><label for="name">Name</label><input id="name" name="name" autocomplete="name" maxlength="80" required></div>
+        <div><label for="phone">Best number</label><input id="phone" name="phone" type="tel" autocomplete="tel" maxlength="30" required></div>
+      </div>
+      <div class="row">
+        <div><label for="email">Email</label><input id="email" name="email" type="email" autocomplete="email" maxlength="120" required></div>
+        <div><label for="date">Date of your event</label><input id="date" name="date" type="date" required></div>
+      </div>
+      <label class="check"><input type="checkbox" id="offers"> I would like to hear about offers and credits from Wander Coffee Van. I can unsubscribe at any time.</label>
+      <div class="hp" aria-hidden="true"><label>Leave this empty<input name="website" id="website" tabindex="-1" autocomplete="off"></label></div>
+      <button type="submit" class="go" id="go">Email me my price and call me today</button>
       <p class="ref-note" id="ref-note" hidden>A friend sent you, so your first morning is 10% off. Send your details and we will thank them.</p>
       <p class="fine">A few extra details. We confirm your hours, start time and address on the call. Prefer the 4-Pack? Say so on the call, or reply to your quote.</p>
       <p class="fine">Travel is free within 50 km of our base. Further out, we confirm a small travel charge on the call.</p>
       <div class="msg" id="msg" role="alert" hidden></div>
-    </section>
+    </form>
 
     <div class="stack">
       <section class="card rise d4">
@@ -188,15 +202,12 @@ footer a{color:var(--forest)}
 <script src="referral.js"></script>
 <script src="boot.js"></script>
 <script>
-// The price below is Wander's Catering Rate Card (quote.js). Booking requests go to Wander's Google Form (set in
-// config.js). This page sends no email. If tracking is configured it records what visitors do here, never what they
+// The price below is Wander's Catering Rate Card (quote.js). Requests go to Wander's booking intake (config.js), which
+// emails the quote and alerts Wander. If tracking is configured it records what visitors do here, never what they
 // type (see privacy.html).
-const FORM_URL = window.WANDER_FORM_URL || "";
-// A friend's code from ?ref= (kept 30 days). It only reaches the form, and only says thank you, when the form's referral question is set.
+// A friend's code from ?ref= (kept 30 days). It goes with the request, and the page says thank you.
 const referralCode = (() => { try { return window.WanderReferral.captureReferral(location.search, localStorage, Date.now()); } catch (err) { return null; } })();
-const referralLive = !!referralCode && /^\d+$/.test(String(window.WANDER_FORM_REFERRAL_ENTRY || ""));
-if (/^\d+$/.test(String(window.WANDER_FORM_PACKAGE_ENTRY || ""))) document.getElementById("pkg-wrap").hidden = false;
-document.getElementById("ref-note").hidden = !referralLive;
+document.getElementById("ref-note").hidden = !referralCode;
 const { quote, packPrice, packBonus } = window.WanderQuote;
 const peopleEl = document.getElementById("people"), msg = document.getElementById("msg"), go = document.getElementById("go");
 const hours = () => Number(document.querySelector('input[name="hours"]:checked').value);
@@ -223,20 +234,46 @@ function showQuote() {
     : `For ${n} ${n === 1 ? "person" : "people"} at ${h} hours a morning: ${money(pack)} either way, and the 4-Pack adds ${hoursText(bonus.hours)} of coffee time worth ${money(bonus.value)}. Nothing to lose.`;
 }
 document.addEventListener("input", showQuote); showQuote();
-go.addEventListener("click", (event) => {
-  if (tracker) tracker.track("cta", { form: /^https:\/\/(docs\.google\.com\/forms|forms\.gle)\//.test(FORM_URL) });
-  if (tracker) tracker.flush();
-  if (/^https:\/\/(docs\.google\.com\/forms|forms\.gle)\//.test(FORM_URL)) {
-    const pkg = document.querySelector('input[name="package"]:checked');
-    go.href = window.WanderReferral.prefilledFormUrl(FORM_URL, [
-      [window.WANDER_FORM_REFERRAL_ENTRY, window.WanderReferral.normalise(referralCode || "")],
-      [window.WANDER_FORM_PACKAGE_ENTRY, pkg ? pkg.value : ""],
-    ]);
-    return;
-  }
+const INTAKE_URL = window.WANDER_INTAKE_URL || "";
+const CALL_LINE = "Call us on 0492 801 058 and we will take it from there.";
+const todaySydney = () => new Date().toLocaleDateString("en-CA", { timeZone: "Australia/Sydney" });
+const field = (id) => document.getElementById(id);
+function bookingPayload() {
+  const pkg = document.querySelector('input[name="package"]:checked');
+  return {
+    action: "booking", website: field("website").value,
+    name: field("name").value.trim(), phone: field("phone").value.trim(), email: field("email").value.trim(),
+    date: field("date").value, people: validPeople(), hours: hours(),
+    package: pkg ? pkg.value : "Single morning", offers: field("offers").checked, referral: referralCode || "",
+  };
+}
+function bookingProblem(p) {
+  if (!p.name) return "Please add your name.";
+  if (p.phone.replace(/\D/g, "").length < 8) return "Please add a phone number we can call.";
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(p.email)) return "Please check your email address.";
+  if (!p.date) return "Please pick the date of your event.";
+  if (p.date < todaySydney()) return "That date has passed. Pick a date from today on.";
+  if (!p.people) return "Enter 1 to 500 people above.";
+  return "";
+}
+function say(text, ok) { msg.textContent = text; msg.hidden = false; msg.dataset.state = ok ? "ok" : "problem"; }
+document.getElementById("form").addEventListener("submit", async (event) => {
   event.preventDefault();
-  msg.textContent = "Online requests open shortly. To book now, call 0492 801 058 with your price above.";
-  msg.hidden = false;
+  if (tracker) { tracker.track("cta", { form: true }); tracker.flush(); }
+  const p = bookingPayload();
+  const problem = bookingProblem(p);
+  if (problem) { say(problem, false); return; }
+  go.disabled = true;
+  say("Sending your details...", true);
+  try {
+    const res = await fetch(INTAKE_URL, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(p) });
+    const data = await res.json();
+    if (data && data.ok) { say("Thanks. Your price is on its way to your inbox, and we will call you today to confirm.", true); go.textContent = "Sent. Thank you!"; return; }
+    say("We could not take that just now. " + CALL_LINE, false);
+  } catch (err) {
+    say("We could not send that. " + CALL_LINE, false);
+  }
+  go.disabled = false;
 });
 
 // Passive tracking: inert unless config.js sets the events URL and site key.
