@@ -17,6 +17,11 @@ export const MOCK_CLIENT_TOKEN = "CLIENT-TOKEN-FIXTURE-0000000000";
 export const MOCK_RETURNING_TOKEN = "CLIENT-TOKEN-RETURNING-0000000";
 export const MOCK_HANDMADE_TOKEN = "CLIENT-TOKEN-HANDMADE-000000000";
 export const MOCK_TWO_TOKEN = "CLIENT-TOKEN-TWOBOOKINGS-000000";
+// Extras (the logo on the foam): a held morning, a confirmed one with a card link, one the app offers nothing on, one cancelled.
+export const MOCK_EXTRAS_HELD_TOKEN = "CLIENT-TOKEN-EXTRAS-HELD-0000000";
+export const MOCK_EXTRAS_CONFIRMED_TOKEN = "CLIENT-TOKEN-EXTRAS-CONF-0000000";
+export const MOCK_EXTRAS_NONE_TOKEN = "CLIENT-TOKEN-EXTRAS-NONE-0000000";
+export const MOCK_EXTRAS_CANCELLED_TOKEN = "CLIENT-TOKEN-EXTRAS-CANC-0000000";
 
 const TYPES = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8",
   ".png": "image/png", ".woff2": "font/woff2", ".json": "application/json" };
@@ -60,6 +65,9 @@ function devPrices(now) {
   return { asOf: now, quotes, packs, fees };
 }
 
+const EXTRA_STENCIL = { key: "logo-foam", label: "Logo on the foam", price: 89,
+  blurb: "Your logo in cocoa on every flat white and latte. We make the stencil from your logo and keep it for your next morning." };
+
 export function seededDb(now = new Date().toISOString()) {
   const db = makeDb();
   S.publish(db, MOCK_APP_TOKEN, {
@@ -71,6 +79,10 @@ export function seededDb(now = new Date().toISOString()) {
       { token: MOCK_RETURNING_TOKEN, firstName: "Sam", referralCode: "H4BC-7WDR" },
       { token: MOCK_HANDMADE_TOKEN, firstName: "Pat", referralCode: "" },
       { token: MOCK_TWO_TOKEN, firstName: "Lee", referralCode: "", club: { month: now.slice(0, 7), used: 2, perMonth: 4 } },
+      { token: MOCK_EXTRAS_HELD_TOKEN, firstName: "Hana", referralCode: "" },
+      { token: MOCK_EXTRAS_CONFIRMED_TOKEN, firstName: "Chris", referralCode: "" },
+      { token: MOCK_EXTRAS_NONE_TOKEN, firstName: "Noor", referralCode: "" },
+      { token: MOCK_EXTRAS_CANCELLED_TOKEN, firstName: "Cam", referralCode: "" },
     ],
     bookings: [
       { id: "bk-old", clientToken: MOCK_RETURNING_TOKEN, status: "completed", date: "2026-10-10", startTime: "09:00", endTime: "12:00",
@@ -83,6 +95,16 @@ export function seededDb(now = new Date().toISOString()) {
         discount: 61.9, amountDue: 557.1, bonusHours: 2, creditsApplied: ["10% off your first morning", "2 free hours (Team Captain)"], payLink: "https://square.link/u/abc123" },
       { id: "bk-l2", clientToken: MOCK_TWO_TOKEN, status: "confirmed", date: "2026-12-19", startTime: "10:00", endTime: "13:00",
         people: 30, hours: 3, address: "9 Beach Road, Hawks Nest", total: 900, outOfHoursFee: 0, requestId: "", paid: true },
+      // What Coffee Van publishes with the extras switch on: the menu (with its own price) on a held or confirmed morning.
+      { id: "bk-x-held", clientToken: MOCK_EXTRAS_HELD_TOKEN, status: "held", date: "2026-12-12", startTime: "09:00", endTime: "12:00",
+        people: 20, hours: 3, address: "3 Lake Road, Tea Gardens", total: 619, outOfHoursFee: 0, requestId: "", amountDue: 619, extras: [], extrasMenu: [EXTRA_STENCIL] },
+      { id: "bk-x-conf", clientToken: MOCK_EXTRAS_CONFIRMED_TOKEN, status: "confirmed", date: "2026-12-14", startTime: "09:00", endTime: "12:00",
+        people: 20, hours: 3, address: "1 Main Street, Tea Gardens", total: 619, outOfHoursFee: 0, requestId: "", amountDue: 619, extras: [],
+        extrasMenu: [EXTRA_STENCIL], payLink: "https://square.link/u/extras619" },
+      { id: "bk-x-none", clientToken: MOCK_EXTRAS_NONE_TOKEN, status: "confirmed", date: "2026-12-15", startTime: "09:00", endTime: "12:00",
+        people: 60, hours: 3, address: "9 Beach Road, Hawks Nest", total: 1100, outOfHoursFee: 0, requestId: "", amountDue: 1100 },
+      { id: "bk-x-canc", clientToken: MOCK_EXTRAS_CANCELLED_TOKEN, status: "cancelled", date: "2026-12-16", startTime: "09:00", endTime: "12:00",
+        people: 20, hours: 3, address: "1 Main Street, Tea Gardens", total: 619, outOfHoursFee: 0, requestId: "", amountDue: 619, extras: [], extrasMenu: [EXTRA_STENCIL] },
     ],
     busy: [],
     reward: { referrerPercent: 10, friendPercent: 10, captainEvery: 3, captainFreeHours: 2 },
@@ -118,6 +140,7 @@ export function startMock(port = 4180, { db = seededDb() } = {}) {
       if (body === null) return send(400, { ok: false, error: "bad-json" });
       if (action === "session") return send(200, S.session(db, body.k, now));
       if (action === "request") return send(200, S.request(db, body, now));
+      if (action === "extra") return send(200, S.extra(db, body, now));
       if (action === "availability") return send(200, S.availability(db, body, now));
       if (action === "event") return send(200, S.event(db, body, now));
       if (action === "funnel") return send(200, S.funnel(db, body.k, now, body.days));

@@ -26,6 +26,7 @@ var WanderApi = (function () {
     prices: function () { return read("prices"); },
     health: function () { return read("health"); },
     request: function (body) { return send("request", body); },
+    extra: function (body) { return send("extra", body); },
     event: function (body) { return send("event", body); },
   };
 })();

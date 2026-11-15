@@ -91,7 +91,7 @@ function doGet(e) {
   }
 }
 
-// POST (text/plain JSON body): session, request, availability, event, funnel, publish, pending, ack.
+// POST (text/plain JSON body): session, request, extra, availability, event, funnel, publish, pending, ack.
 function doPost(e) {
   var action = (e && e.parameter && e.parameter.action) || '';
   var body;
@@ -101,6 +101,7 @@ function doPost(e) {
     var now = storeNow_();
     if (action === 'session') return storeJson_(StoreLogic.session(db, body.k, now));
     if (action === 'request') return storeJson_(StoreLogic.request(db, body, now));
+    if (action === 'extra') return storeJson_(StoreLogic.extra(db, body, now));
     if (action === 'availability') return storeJson_(StoreLogic.availability(db, body, now));
     // Public, for a first-time client on the booking page (no key yet): free start times, and the request itself.
     if (action === 'opentimes') return storeJson_(StoreLogic.openTimes(db, body, now));

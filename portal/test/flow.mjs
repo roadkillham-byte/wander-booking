@@ -1,7 +1,7 @@
 // End-to-end check of the client journey in a headless browser at phone width: link, Held, Book, the 4-Pack offer,
 // a plain decline, and the confirmation. Run: node test/flow.mjs   (uses the Playwright install in render-engine).
 import { createRequire } from "node:module";
-import { startMock, MOCK_CLIENT_TOKEN, MOCK_RETURNING_TOKEN, MOCK_HANDMADE_TOKEN, MOCK_TWO_TOKEN } from "../mock.mjs";
+import { startMock, MOCK_CLIENT_TOKEN, MOCK_RETURNING_TOKEN, MOCK_HANDMADE_TOKEN, MOCK_TWO_TOKEN, MOCK_EXTRAS_HELD_TOKEN, MOCK_EXTRAS_CONFIRMED_TOKEN, MOCK_EXTRAS_NONE_TOKEN, MOCK_EXTRAS_CANCELLED_TOKEN } from "../mock.mjs";
 const require = createRequire(import.meta.url);
 const { chromium } = require(process.env.HOME + "/render-engine/node_modules/playwright-core");
 
@@ -337,6 +337,111 @@ await check("the Refer screen says when a friend's reward unlocks, and lists the
   const txt = await page.innerText("#app");
   if (!/Jo: booked.*unlocks after their morning/s.test(txt)) throw new Error("booked wording: " + txt.slice(0, 500));
   if (!/10% off your next booking/.test(txt) || !/use by/i.test(txt)) throw new Error("the waiting credit is not shown");
+});
+
+// ---- the logo on the foam: "Add to your morning" --------------------------------------------------------------------------
+const extrasText = () => page.innerText("#app");
+const orangeActions = () => page.$$eval("#app .go:not(.ghost)", (els) => els.map((e) => e.textContent.trim()));
+
+await check("a held morning shows the 'Add to your morning' card under the price, with the stencil, its blurb, $89 and one Add button", async () => {
+  await page.goto(url + "/#k=" + MOCK_EXTRAS_HELD_TOKEN);
+  await page.waitForSelector(".extras");
+  const txt = await page.innerText(".extras");
+  for (const want of ["Add to your morning", "Logo on the foam", "$89", "Your logo in cocoa on every flat white and latte"]) {
+    if (!txt.includes(want)) throw new Error("missing: " + want + " in " + txt);
+  }
+  if ((await page.$$(".extras button")).length !== 1 || (await page.innerText(".extras button")) !== "Add") throw new Error("expected one Add button");
+  const order = await page.evaluate(() => { const p = document.querySelector("#app .price"), e = document.querySelector("#app .extras"); return !!(p.compareDocumentPosition(e) & Node.DOCUMENT_POSITION_FOLLOWING); });
+  if (!order) throw new Error("the card is not under the price");
+  if (/Reply to your confirmation email with your logo/.test(await extrasText())) throw new Error("the logo line shows before anything is added");
+  const orange = await orangeActions();
+  if (orange.length !== 0) throw new Error("the Add card must not add an orange action: " + orange.join(","));
+  await noOverflowAndNoJunk("Held with extras");
+  await page.waitForTimeout(800);
+  await page.screenshot({ path: shots + "/dash-10-extras-held.png", fullPage: true });
+});
+
+await check("Add changes the price block at once: the extra line, the new amount to pay, and the logo line; the button becomes Remove", async () => {
+  await page.click(".extras button");
+  await page.waitForSelector(".extras button:has-text('Remove')");
+  const price = await page.innerText("#app .price");
+  if (!price.includes("$708")) throw new Error("amount to pay not $708: " + price);
+  const txt = await extrasText();
+  if (!/Logo on the foam, \$89/.test(txt)) throw new Error("extra line missing: " + txt.slice(0, 600));
+  if (!txt.includes("Reply to your confirmation email with your logo and we will make it.")) throw new Error("logo line missing");
+  if (!/Price \$619, plus Logo on the foam \$89/.test(txt)) throw new Error("price note: " + txt.slice(0, 700));
+  const queued = db.tables.queue.filter((q) => q.kind === "extra");
+  if (queued.length !== 1 || JSON.parse(queued[0].payload).request.op !== "add") throw new Error("not queued for the app");
+  if ((await orangeActions()).length) throw new Error("an orange action appeared");
+  await noOverflowAndNoJunk("Held after Add");
+  await page.waitForTimeout(800);
+  await page.screenshot({ path: shots + "/dash-11-extras-added.png", fullPage: true });
+});
+
+await check("the choice is still there after reloading the page", async () => {
+  await page.reload();
+  await page.waitForSelector(".extras button:has-text('Remove')");
+  if (!(await page.innerText("#app .price")).includes("$708")) throw new Error("amount lost on reload");
+});
+
+await check("Remove restores the price and takes the logo line away", async () => {
+  await page.click(".extras button");
+  await page.waitForSelector(".extras button:has-text('Add')");
+  const price = await page.innerText("#app .price");
+  if (!price.includes("$619") || price.includes("$708")) throw new Error("price not back to $619: " + price);
+  const txt = await extrasText();
+  if (/Logo on the foam, \$89|Reply to your confirmation email with your logo/.test(txt)) throw new Error("extra still shown: " + txt.slice(0, 500));
+  await noOverflowAndNoJunk("Held after Remove");
+});
+
+await check("a confirmed morning shows the card too, and Add takes the old $619 card link away", async () => {
+  await page.goto(url + "/#k=" + MOCK_EXTRAS_CONFIRMED_TOKEN);
+  await page.waitForSelector(".extras");
+  if (!(await extrasText()).includes("Pay $619 by card")) throw new Error("pay link missing before the add");
+  await page.click(".extras button");
+  await page.waitForSelector(".extras button:has-text('Remove')");
+  const txt = await extrasText();
+  if (!(await page.innerText("#app .price")).includes("$708")) throw new Error("amount not $708");
+  if (/Pay \$619 by card/.test(txt) || /square\.link\/u\/extras619/.test(await page.content())) throw new Error("the $619 link is still offered");
+  await noOverflowAndNoJunk("Confirmed after Add");
+  await page.waitForTimeout(800);
+  await page.screenshot({ path: shots + "/dash-12-extras-confirmed.png", fullPage: true });
+  await page.click(".extras button");
+  await page.waitForSelector(".extras button:has-text('Add')");
+  if (!(await page.innerText("#app .price")).includes("$619")) throw new Error("not back to $619");
+});
+
+await check("the same card shows on the booking's own page", async () => {
+  await page.goto(url + "/#k=" + MOCK_EXTRAS_HELD_TOKEN + "&v=booking&b=bk-x-held");
+  await page.waitForSelector(".extras");
+  await noOverflowAndNoJunk("booking page with extras");
+});
+
+await check("no card when the app offers no menu, and none on a cancelled booking", async () => {
+  for (const [token, id] of [[MOCK_EXTRAS_NONE_TOKEN, "bk-x-none"], [MOCK_EXTRAS_CANCELLED_TOKEN, "bk-x-canc"]]) {
+    await page.goto(url + "/#k=" + token + "&v=booking&b=" + id);
+    await page.waitForSelector("#app h2");
+    await page.waitForTimeout(400);
+    if (await page.$(".extras")) throw new Error("a card was shown for " + id);
+    if (/Add to your morning/.test(await extrasText())) throw new Error("heading shown for " + id);
+    await noOverflowAndNoJunk(id);
+  }
+  await page.goto(url + "/#k=" + MOCK_CLIENT_TOKEN);
+  await page.waitForSelector("#app h2");
+  if (await page.$(".extras")) throw new Error("a card on a screen with no booking");
+});
+
+await check("a store that cannot be reached says so plainly and keeps the page as it was", async () => {
+  await page.goto(url + "/#k=" + MOCK_EXTRAS_HELD_TOKEN);
+  await page.waitForSelector(".extras button");
+  await page.route("**/api?action=extra", (route) => route.abort());
+  await page.click(".extras button");
+  await page.waitForSelector(".notice");
+  if (!/try again/i.test(await page.innerText(".notice"))) throw new Error("no plain message");
+  if (!(await page.innerText("#app .price")).includes("$619")) throw new Error("price changed with nothing saved");
+  await page.unroute("**/api?action=extra");
+  // The browser logs the request we cut off ourselves; that one message is expected.
+  for (let i = errors.length - 1; i >= 0; i--) if (/ERR_FAILED/.test(errors[i])) errors.splice(i, 1);
 });
 
 await check("no page errors", async () => {

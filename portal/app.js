@@ -188,14 +188,38 @@
   function priceHtml(b) {
     var gross = Number(b.total) + Number(b.outOfHoursFee || 0);
     var applied = b.creditsApplied || [];
-    if (!applied.length && !(Number(b.discount) > 0) && !(Number(b.bonusHours) > 0)) {
+    var extras = b.extras || [];
+    if (!applied.length && !(Number(b.discount) > 0) && !(Number(b.bonusHours) > 0) && !extras.length) {
       return '<div class="price"><strong>' + money(gross) + "</strong><span>incl. GST</span></div>";
     }
     var lines = applied.map(function (l) { return "<li>" + esc(l) + "</li>"; }).join("");
-    return '<div class="price"><strong>' + exact(b.amountDue) + "</strong><span>to pay, after your credits</span></div>" +
-      '<ul class="list credits-taken">' + lines + "</ul>" +
+    // What was added, one line each: the store's own words and price, never worked out here.
+    var added = extras.map(function (x) { return "<li>" + esc(x.label) + ", " + exact(x.price) + "</li>"; }).join("");
+    var addedNote = extras.map(function (x) { return ", plus " + esc(x.label) + " " + exact(x.price); }).join("");
+    return '<div class="price"><strong>' + exact(b.amountDue) + "</strong><span>to pay" + (applied.length || Number(b.discount) > 0 ? ", after your credits" : "") + "</span></div>" +
+      (lines || !extras.length ? '<ul class="list credits-taken">' + lines + "</ul>" : "") +
+      (added ? '<ul class="list extras-taken">' + added + "</ul>" : "") +
       '<p class="note">Price ' + exact(gross) + (Number(b.discount) > 0 ? ", less " + exact(b.discount) : "") +
-      (Number(b.bonusHours) > 0 ? ", plus " + esc(b.bonusHours) + " free hours" : "") + ". Incl. GST.</p>";
+      (Number(b.bonusHours) > 0 ? ", plus " + esc(b.bonusHours) + " free hours" : "") + addedNote + ". Incl. GST.</p>";
+  }
+
+  // "Add to your morning": what Coffee Van offers on this booking (its words, its price), one quiet button each. Only on a held or
+  // confirmed morning that the store gave a menu for. The page never works out a price; adding shows the store's new amount at once.
+  function extrasHtml(b) {
+    var menu = b.extrasMenu || [];
+    if (!menu.length || (b.status !== "held" && b.status !== "confirmed")) return "";
+    var chosen = {};
+    (b.extras || []).forEach(function (x) { chosen[x.key] = true; });
+    var rows = menu.map(function (m) {
+      var has = !!chosen[m.key];
+      return '<li><div class="extra-top"><strong>' + esc(m.label) + '</strong><span class="word">' + exact(m.price) + "</span></div>" +
+        (m.blurb ? '<p class="note">' + esc(m.blurb) + "</p>" : "") +
+        '<button type="button" class="go ghost" data-extra="' + esc(m.key) + '" data-op="' + (has ? "remove" : "add") + '" data-booking="' + esc(b.id) + '">' +
+        (has ? "Remove" : "Add") + "</button></li>";
+    }).join("");
+    var any = menu.some(function (m) { return chosen[m.key]; });
+    return '<section class="extras"><h3>Add to your morning</h3><ul class="cards">' + rows + "</ul>" +
+      (any ? '<p class="note">Reply to your confirmation email with your logo and we will make it.</p>' : "") + "</section>";
   }
 
   // Paying: a button to the Square page once Coffee Van has made the link, a thank-you once it is paid. Bank transfer stays by reply.
@@ -211,7 +235,7 @@
     var inner = '<section class="rise d1"><h2 class="rule">' + (b.status === "confirmed" ? "You are confirmed" : "Your morning is held") + "</h2>" +
       '<div class="ticket"><dl><dt>Date</dt><dd>' + esc(dayName(b.date)) + "</dd><dt>Start</dt><dd>" + esc(clock(b.startTime)) +
       "</dd><dt>People</dt><dd>" + esc(b.people) + "</dd><dt>Hours</dt><dd>" + esc(b.hours) + "</dd><dt>Where</dt><dd>" + esc(b.address) +
-      '</dd></dl>' + priceHtml(b) + "</div>" + payHtml(b) +
+      '</dd></dl>' + priceHtml(b) + "</div>" + payHtml(b) + extrasHtml(b) +
       '<p class="note">' + (b.status === "confirmed"
         ? "We will text you the day before. Need to change it? Use the links below."
         : "We reply within 24 hours to confirm. Nothing is charged before we confirm.") + "</p>" +
@@ -619,6 +643,22 @@
     if (no) no.addEventListener("click", function () {
       track("upgrade-declined", {});
       showPage(renderConfirmed(null));
+    });
+    Array.prototype.forEach.call(app.querySelectorAll("button[data-extra]"), function (btn) {
+      btn.addEventListener("click", function () {
+        if (state.busy) return;
+        state.busy = true;
+        btn.disabled = true;
+        track("cta", { v: "extra" });
+        WanderApi.extra({ k: state.k, bookingId: btn.getAttribute("data-booking"), key: btn.getAttribute("data-extra"), op: btn.getAttribute("data-op") }).then(function (r) {
+          state.busy = false;
+          if (r && r.ok) return refresh().then(function () { showRoute(); });
+          btn.disabled = false;
+          flash(WanderApi.unreachable(r)
+            ? "We could not reach our system just now, so nothing has changed. Please try again in a minute."
+            : "That did not go through, so nothing has changed. Please try again, or reply to your email and we will sort it.");
+        });
+      });
     });
     var ics = document.getElementById("ics");
     if (ics) ics.addEventListener("click", function () { track("calendar", {}); downloadIcs(); });
