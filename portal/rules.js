@@ -18,22 +18,28 @@ var WanderRules = (function () {
   const TRADING_END = "16:00";
   const TRADING_WORDS = "outside our usual hours (7 am to 4 pm)";
 
-  // Where the van can go and how far each place is from base, one way, in road kilometres. DRAFT (14 Nov 2026): Sam to correct.
-  // Beyond 50 km is never held automatically; "other" (somewhere else) is never guessed.
+  // Where the van can go and how far each place is from base, one way, in road kilometres. Beyond 50 km is never held
+  // automatically; "other" (somewhere else) is never guessed.
+  // VERIFIED 15 Nov 2026 against OpenStreetMap road distances: Nominatim suburb-centre coordinates, routed with the public OSRM
+  // demo server from the centre of Tea Gardens (the base that best explains the draft: Hawks Nest, Jimmys Beach and Winda Woppa
+  // came within 1 km), rounded to whole km. A draft figure was replaced only where it was off by more than 3 km. Tea Gardens
+  // stays 7 (centre to centre it is 0; the draft figure presumably allows for where the van is actually based). Medowie
+  // verified at 46 (49 from Hawks Nest), just inside the 50 km line, but kept at the draft 55 so it still needs a call: the free-travel
+  // line is a promise to the client until the van's real start point is confirmed.
   const SUBURBS = [
     { key: "hawks-nest", label: "Hawks Nest", km: 3 },
     { key: "jimmys-beach", label: "Jimmys Beach", km: 3 },
     { key: "winda-woppa", label: "Winda Woppa", km: 4 },
     { key: "tea-gardens", label: "Tea Gardens", km: 7 },
-    { key: "pindimar", label: "Pindimar", km: 25 },
-    { key: "karuah", label: "Karuah", km: 35 },
+    { key: "pindimar", label: "Pindimar", km: 17 },
+    { key: "karuah", label: "Karuah", km: 23 },
     { key: "bulahdelah", label: "Bulahdelah", km: 40 },
-    { key: "booral", label: "Booral", km: 51 },
-    { key: "medowie", label: "Medowie", km: 55 },
-    { key: "nelson-bay", label: "Nelson Bay", km: 65 },
-    { key: "salamander-bay", label: "Salamander Bay", km: 65 },
-    { key: "forster", label: "Forster", km: 80 },
-    { key: "tuncurry", label: "Tuncurry", km: 80 },
+    { key: "booral", label: "Booral", km: 57 },
+    { key: "medowie", label: "Medowie", km: 55 }, // verified 46 from Tea Gardens centre, held at 55 until the van's real start point is confirmed (the 50 km free-travel line is a promise to the client)
+    { key: "nelson-bay", label: "Nelson Bay", km: 80 },
+    { key: "salamander-bay", label: "Salamander Bay", km: 77 },
+    { key: "forster", label: "Forster", km: 107 },
+    { key: "tuncurry", label: "Tuncurry", km: 105 },
   ];
   const squash = (text) => String(text == null ? "" : text).toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 

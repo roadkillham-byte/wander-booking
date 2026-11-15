@@ -165,7 +165,7 @@ test("travelKmFor reads the picked suburb first, then the suburb named in the ad
   assert.equal(R.travelKmFor("tea-gardens", ""), 7);
   assert.equal(R.travelKmFor("", "3 Lake Road, Tea Gardens"), 7);
   assert.equal(R.travelKmFor("hawks-nest", "9 Somewhere, Forster"), 3, "an explicit pick wins over the typed address");
-  assert.equal(R.travelKmFor("", "12 Forster Way, Tea Gardens"), 80, "a street named after a far suburb counts as far: the farthest match wins");
+  assert.equal(R.travelKmFor("", "12 Forster Way, Tea Gardens"), 107, "a street named after a far suburb counts as far: the farthest match wins");
   assert.equal(R.travelKmFor("other", "3 Lake Road, Tea Gardens"), null, "somewhere else is never guessed from the address");
   assert.equal(R.travelKmFor("", "7 Nowhere Lane, Wyong"), null);
   assert.equal(R.travelKmFor("", ""), null);
