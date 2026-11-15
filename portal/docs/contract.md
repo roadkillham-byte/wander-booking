@@ -90,6 +90,21 @@ Rules applied by the store (shared logic, `rules.js`): notice of 24 hours or mor
 (every day, 07:00 to 16:00), slot free on the van with a 60-minute gap, address within 50 km (the page sends the `suburb` the client picked; the store works the distance out from it, or from the suburb named in `address`, and never trusts a distance sent by the page; an unknown place or "other" is `requested`). Any miss is `requested`, never an error. A hold is checked against published busy times **and** holds
 still waiting in the store, under a lock, so two clients cannot hold the same slot.
 
+## Extras (client, token)
+
+`POST ?action=extra` with `{k, bookingId, key, op}`, `op` is `add` or `remove`. Coffee Van publishes, per booking that is held or
+confirmed, an optional `extrasMenu: [{key, label, blurb, price}]` (only while its `DASHBOARD_EXTRAS` switch is on, only inside the
+extra's size limit and 48 hours before the morning) and always `extras: [{key, label, price}]` (the ones chosen, already inside
+`amountDue`). The page shows the "Add to your morning" card only when `extrasMenu` is present, and never works out a price.
+
+The store checks the booking is the client's and open (`not-open` otherwise), that `key` is in that booking's published menu or
+already chosen (`not-offered`), and answers `{ok:true, outcome:"applied"|"unchanged", bookingId}`. It applies the change to the published booking at
+once (the extra line, `amountDue` plus or minus the menu price, `payLink` cleared because a link made for the old amount must not be
+offered) and queues `{kind:"extra", bookingId, key, op}` for Coffee Van, which prices it itself, refuses it after the cutoff or on a
+cancelled or completed booking, and publishes the booking again as truth. Until Coffee Van acknowledges the item, the session keeps showing
+the choice even if an older publish arrives. Repeating a request changes nothing and queues nothing. At most 30 changes per client per
+day (`too-many`). Errors: `bad-op`, `bad-request`, `not-found`.
+
 ## First-time clients (public, no key)
 
 For someone on the booking page who has no key yet. Both routes are public; `newhold` is limited to 3 requests per email per day and

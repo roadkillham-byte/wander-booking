@@ -750,3 +750,197 @@ test("a Square pay link and the paid flag reach the client's session, and a link
   assert.deepEqual([by("bk-2").payLink, by("bk-2").paid], ["", true]);
   assert.deepEqual([by("bk-3").payLink, by("bk-3").paid], ["", false]);
 });
+
+// ---- extras: the logo on the foam, added and removed on the page ------------------------------------------------------------
+
+const MENU = [{ key: "logo-foam", label: "Logo on the foam", blurb: "Your logo in cocoa on every flat white and latte.", price: 89 }];
+// A confirmed $619 morning that the app has published with the extras menu on, and one with a 10% credit already taken.
+function publishWithMenu(db, over = {}) {
+  return publish(db, Object.assign({
+    bookings: [
+      { id: "bk-101", clientToken: ALEX, status: "confirmed", date: "2026-12-05", startTime: "09:00", endTime: "12:00", people: 20, hours: 3,
+        address: "1 Main Street, Tea Gardens", total: 619, outOfHoursFee: 0, requestId: "", amountDue: 619, extras: [], extrasMenu: MENU,
+        payLink: "https://square.link/u/abc123" },
+      { id: "bk-102", clientToken: ALEX, status: "held", date: "2026-12-12", startTime: "09:00", endTime: "12:00", people: 20, hours: 3,
+        address: "2 Lake Road", total: 619, outOfHoursFee: 0, requestId: "", discount: 61.9, amountDue: 557.1, creditsApplied: ["10% off"], extrasMenu: MENU },
+      { id: "bk-103", clientToken: ALEX, status: "cancelled", date: "2026-12-20", startTime: "09:00", endTime: "12:00", people: 20, hours: 3,
+        address: "3 Road", total: 619, outOfHoursFee: 0, requestId: "", amountDue: 619, extrasMenu: MENU },
+      { id: "bk-104", clientToken: ALEX, status: "confirmed", date: "2026-12-22", startTime: "09:00", endTime: "12:00", people: 50, hours: 3,
+        address: "4 Road", total: 1000, outOfHoursFee: 0, requestId: "", amountDue: 1000 },
+      { id: "bk-201", clientToken: SAM, status: "confirmed", date: "2026-12-06", startTime: "09:00", endTime: "12:00", people: 20, hours: 3,
+        address: "5 Road", total: 619, outOfHoursFee: 0, requestId: "", amountDue: 619, extrasMenu: MENU },
+    ],
+  }, over));
+}
+const extraBody = (over = {}) => Object.assign({ k: ALEX, bookingId: "bk-101", key: "logo-foam", op: "add" }, over);
+const bookingOf = (db, id, token = ALEX) => S.session(db, token, NOW).bookings.find((b) => b.id === id);
+
+test("extras: the bookings table has columns for the menu and the chosen extras, after the old ones so a sheet keeps its header refresh", () => {
+  const cols = S.TABLES.bookings;
+  assert.deepEqual(cols.slice(-2), ["extrasMenu", "extras"]);
+  assert.equal(cols[cols.length - 3], "paid");
+});
+
+test("extras: a published menu and the chosen extras reach the session; a booking without a menu has none", () => {
+  const db = makeDb();
+  assert.equal(publishWithMenu(db).ok, true);
+  const b = bookingOf(db, "bk-101");
+  assert.deepEqual(b.extrasMenu, MENU);
+  assert.deepEqual(b.extras, []);
+  assert.equal(b.amountDue, 619);
+  assert.equal(bookingOf(db, "bk-104").extrasMenu, undefined);
+  assert.deepEqual(bookingOf(db, "bk-104").extras, []);
+});
+
+test("extras: a menu is cleaned on publish (plain text, a real price, at most a few rows)", () => {
+  const db = makeDb();
+  publishWithMenu(db, { bookings: [{ id: "bk-101", clientToken: ALEX, status: "confirmed", date: "2026-12-05", startTime: "09:00", people: 20, hours: 3, total: 619,
+    extrasMenu: [{ key: "logo-foam", label: "Logo\non the foam", blurb: "x".repeat(500), price: 89 }, { key: "", label: "no key", price: 5 }, { key: "bad", label: "bad price", price: "free" }, null],
+    extras: [{ key: "logo-foam", label: "Logo on the foam", price: 89 }, { key: "junk", price: -4 }] }] });
+  const b = bookingOf(db, "bk-101");
+  assert.equal(b.extrasMenu.length, 1);
+  assert.equal(b.extrasMenu[0].label, "Logo on the foam");
+  assert.equal(b.extrasMenu[0].blurb.length, 200);
+  assert.deepEqual(b.extras, [{ key: "logo-foam", label: "Logo on the foam", price: 89 }]);
+});
+
+test("extras: Add shows at once: the extra line, the new amount to pay ($708), and no stale card link", () => {
+  const db = makeDb();
+  publishWithMenu(db);
+  assert.equal(bookingOf(db, "bk-101").payLink, "https://square.link/u/abc123");
+  const r = S.extra(db, extraBody(), NOW);
+  assert.equal(r.ok, true);
+  assert.equal(r.bookingId, "bk-101");
+  const b = bookingOf(db, "bk-101");
+  assert.deepEqual(b.extras, [{ key: "logo-foam", label: "Logo on the foam", price: 89 }]);
+  assert.equal(b.amountDue, 708);
+  assert.equal(b.total, 619);
+  assert.equal(b.payLink, "", "a link made for $619 must not be offered for $708");
+  assert.deepEqual(b.extrasMenu, MENU, "the menu stays so the page can offer Remove");
+});
+
+test("extras: with a credit already taken, adding the stencil adds exactly its price ($557.10 becomes $646.10)", () => {
+  const db = makeDb();
+  publishWithMenu(db);
+  S.extra(db, extraBody({ bookingId: "bk-102" }), NOW);
+  assert.equal(bookingOf(db, "bk-102").amountDue, 646.1);
+});
+
+test("extras: Remove restores the amount", () => {
+  const db = makeDb();
+  publishWithMenu(db);
+  S.extra(db, extraBody({ bookingId: "bk-102" }), NOW);
+  const r = S.extra(db, extraBody({ bookingId: "bk-102", op: "remove" }), NOW);
+  assert.equal(r.ok, true);
+  const b = bookingOf(db, "bk-102");
+  assert.deepEqual(b.extras, []);
+  assert.equal(b.amountDue, 557.1);
+});
+
+test("extras: each change is queued for the app as {kind:'extra', bookingId, key, op}", () => {
+  const db = makeDb();
+  publishWithMenu(db);
+  S.extra(db, extraBody(), NOW);
+  S.extra(db, extraBody({ op: "remove" }), NOW);
+  const items = S.pending(db, APP).items;
+  assert.equal(items.length, 2);
+  assert.deepEqual(items.map((i) => [i.kind, i.clientToken, i.bookingId, i.key, i.op]), [
+    ["extra", ALEX, "bk-101", "logo-foam", "add"],
+    ["extra", ALEX, "bk-101", "logo-foam", "remove"],
+  ]);
+  assert.notEqual(items[0].id, items[1].id);
+  assert.equal(S.ack(db, APP, [items[0].id]).acked, 1);
+  assert.equal(S.pending(db, APP).items.length, 1);
+});
+
+test("extras: tapping Add twice changes nothing the second time and queues nothing more", () => {
+  const db = makeDb();
+  publishWithMenu(db);
+  S.extra(db, extraBody(), NOW);
+  const again = S.extra(db, extraBody(), NOW);
+  assert.equal(again.ok, true);
+  assert.equal(S.pending(db, APP).items.length, 1);
+  assert.equal(bookingOf(db, "bk-101").amountDue, 708);
+  const removeNothing = S.extra(db, extraBody({ bookingId: "bk-102", op: "remove" }), NOW);
+  assert.equal(removeNothing.ok, true);
+  assert.equal(S.pending(db, APP).items.length, 1);
+});
+
+test("extras: refuses what the menu does not offer, someone else's booking, a cancelled booking, and bad input", () => {
+  const db = makeDb();
+  publishWithMenu(db);
+  assert.equal(S.extra(db, extraBody({ key: "gold-cups" }), NOW).error, "not-offered");
+  assert.equal(S.extra(db, extraBody({ bookingId: "bk-104" }), NOW).error, "not-offered");
+  assert.equal(S.extra(db, extraBody({ bookingId: "bk-201" }), NOW).error, "not-found");
+  assert.equal(S.extra(db, extraBody({ bookingId: "nope" }), NOW).error, "not-found");
+  assert.equal(S.extra(db, extraBody({ bookingId: "bk-103" }), NOW).error, "not-open");
+  assert.equal(S.extra(db, extraBody({ k: "WRONG" }), NOW).error, "not-found");
+  assert.equal(S.extra(db, extraBody({ op: "swap" }), NOW).error, "bad-op");
+  assert.equal(S.extra(db, extraBody({ key: "" }), NOW).error, "bad-request");
+  assert.equal(S.extra(db, null, NOW).error, "not-found");
+  assert.equal(S.pending(db, APP).items.length, 0);
+  assert.equal(bookingOf(db, "bk-101").amountDue, 619);
+});
+
+test("extras: a key the client already has can be removed even when the menu no longer lists it", () => {
+  const db = makeDb();
+  publishWithMenu(db, { bookings: [{ id: "bk-101", clientToken: ALEX, status: "confirmed", date: "2026-12-05", startTime: "09:00", people: 20, hours: 3, total: 619,
+    amountDue: 708, extras: [{ key: "logo-foam", label: "Logo on the foam", price: 89 }] }] });
+  assert.equal(S.extra(db, extraBody({ op: "remove" }), NOW).ok, true);
+  assert.equal(bookingOf(db, "bk-101").amountDue, 619);
+});
+
+test("extras: a client can only ask a limited number of times a day", () => {
+  const db = makeDb();
+  publishWithMenu(db);
+  let refused = 0;
+  for (let i = 0; i < 40; i++) {
+    const r = S.extra(db, extraBody({ op: i % 2 === 0 ? "add" : "remove" }), NOW);
+    if (r.error === "too-many") refused += 1;
+  }
+  assert.ok(refused > 0, "no limit");
+  assert.ok(S.pending(db, APP).items.length <= 30);
+  // another client is not held up, and a day later the count starts again
+  assert.equal(S.extra(db, extraBody({ k: SAM, bookingId: "bk-201" }), NOW).ok, true);
+  assert.equal(S.extra(db, extraBody({ op: "add" }), "2026-12-02T07:30:00+11:00").error, undefined);
+});
+
+test("extras: the app's next publish replaces the booking row as truth", () => {
+  const db = makeDb();
+  publishWithMenu(db);
+  S.extra(db, extraBody(), NOW);
+  S.ack(db, APP, S.pending(db, APP).items.map((i) => i.id));
+  publishWithMenu(db); // the app refused the extra (say, after the cutoff): its row has none
+  const b = bookingOf(db, "bk-101");
+  assert.deepEqual(b.extras, []);
+  assert.equal(b.amountDue, 619);
+});
+
+test("extras: a publish made before the app has read the request does not make the client's choice vanish", () => {
+  const db = makeDb();
+  publishWithMenu(db);
+  S.extra(db, extraBody(), NOW);
+  publishWithMenu(db); // an older state of the app, request not imported yet and not acknowledged
+  const b = bookingOf(db, "bk-101");
+  assert.deepEqual(b.extras, [{ key: "logo-foam", label: "Logo on the foam", price: 89 }]);
+  assert.equal(b.amountDue, 708);
+  assert.equal(b.payLink, "");
+});
+
+test("extras: a request waiting for the app is not shown as 'we will text you': it is applied already", () => {
+  const db = makeDb();
+  publishWithMenu(db);
+  S.extra(db, extraBody(), NOW);
+  assert.deepEqual(S.session(db, ALEX, NOW).pending, []);
+});
+
+test("extras: a booking the page holds but the app has not published yet gets no extras", () => {
+  const db = makeDb();
+  publishWithMenu(db);
+  S.request(db, hold(ALEX, "req-h1", "2026-12-15", "09:00"), NOW);
+  const held = S.session(db, ALEX, NOW).bookings.find((b) => b.id === "hold-req-h1");
+  assert.ok(held);
+  assert.equal(held.extrasMenu, undefined);
+  assert.deepEqual(held.extras, []);
+  assert.equal(S.extra(db, extraBody({ bookingId: "hold-req-h1" }), NOW).error, "not-found");
+});

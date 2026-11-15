@@ -20,7 +20,9 @@ var StoreLogic = (function () {
     clients: ["token", "firstName", "referralCode", "quote", "referrals", "club"],
     events: ["time", "type", "data"],
     bookings: ["id", "clientToken", "status", "date", "startTime", "endTime", "people", "hours", "address", "total", "outOfHoursFee", "requestId",
-      "discount", "amountDue", "bonusHours", "creditsApplied", "payLink", "paid"],
+      "discount", "amountDue", "bonusHours", "creditsApplied", "payLink", "paid",
+      // Added last so a sheet that already exists only gains columns at the end. JSON text: what the app offers and what is chosen.
+      "extrasMenu", "extras"],
     busy: ["date", "startTime", "endTime"],
     holds: ["requestId", "id", "clientToken", "date", "startTime", "endTime", "people", "hours", "address", "total", "outOfHoursFee", "createdAt"],
     queue: ["id", "kind", "receivedAt", "clientToken", "payload", "acked"],
@@ -117,6 +119,54 @@ var StoreLogic = (function () {
     };
     for (var k in out) if (out[k] === null) return null;
     return out;
+  }
+
+  var EXTRA_CHANGES_PER_CLIENT_PER_DAY = 30;
+
+  // What the app offers on a booking: a few rows of key, label, blurb and a real price. Anything else is dropped.
+  function cleanMenu(list) {
+    if (!Array.isArray(list)) return [];
+    var out = [];
+    list.slice(0, 5).forEach(function (m) {
+      if (!m || typeof m !== "object") return;
+      var key = clean(m.key, 40), price = money(m.price);
+      if (key === "" || price === null || price < 0) return;
+      out.push({ key: key, label: clean(m.label, 60) || key, blurb: clean(m.blurb, 200), price: price });
+    });
+    return out;
+  }
+
+  // The extras a booking has taken: key, label and what it costs.
+  function cleanChosen(list) {
+    if (!Array.isArray(list)) return [];
+    var out = [];
+    list.slice(0, 5).forEach(function (m) {
+      if (!m || typeof m !== "object") return;
+      var key = clean(m.key, 40), price = money(m.price);
+      if (key === "" || price === null || price < 0) return;
+      out.push({ key: key, label: clean(m.label, 60) || key, price: price });
+    });
+    return out;
+  }
+
+  function parseList(text, cleaner) {
+    try { return text ? cleaner(JSON.parse(text)) : []; } catch (e) { return []; }
+  }
+
+  function cents(n) { return Math.round(n * 100) / 100; }
+
+  // Add or remove one extra on a booking's lists and amount. The price comes from the booking's own menu (what the app published),
+  // never from the request. Returns the new state, or null when nothing changes.
+  function changeExtras(menu, chosen, amountDue, op, key) {
+    var have = null, offered = null, i;
+    for (i = 0; i < chosen.length; i++) if (chosen[i].key === key) have = chosen[i];
+    for (i = 0; i < menu.length; i++) if (menu[i].key === key) offered = menu[i];
+    if (op === "add") {
+      if (have || !offered) return null;
+      return { chosen: chosen.concat([{ key: offered.key, label: offered.label, price: offered.price }]), amountDue: cents(amountDue + offered.price) };
+    }
+    if (!have) return null;
+    return { chosen: chosen.filter(function (c) { return c.key !== key; }), amountDue: cents(Math.max(0, amountDue - have.price)) };
   }
 
   function metaValue(db, key) {
@@ -225,6 +275,7 @@ var StoreLogic = (function () {
           discount: discount, amountDue: due === null ? Math.max(0, total + fee - discount) : due,
           bonusHours: Math.max(0, Number(b.bonusHours || 0)), creditsApplied: JSON.stringify(cleanLabels(b.creditsApplied)),
           payLink: payLinkOk(b.payLink), paid: b.paid === true ? "yes" : "",
+          extrasMenu: JSON.stringify(cleanMenu(b.extrasMenu)), extras: JSON.stringify(cleanChosen(b.extras)),
         };
       });
       var busy = (snapshot.busy || []).map(function (b) { return { date: clean(b.date, 10), startTime: clean(b.startTime, 5), endTime: clean(b.endTime, 5) }; });
@@ -305,13 +356,27 @@ var StoreLogic = (function () {
       try { applied = b.creditsApplied ? cleanLabels(JSON.parse(b.creditsApplied)) : []; } catch (e) { applied = []; }
       var total = Number(b.total || 0), fee = Number(b.outOfHoursFee || 0), discount = Number(b.discount || 0);
       var due = money(b.amountDue);
-      return {
+      var out = {
         id: b.id, status: b.status, date: b.date, startTime: b.startTime, endTime: b.endTime, people: b.people, hours: b.hours,
         address: b.address, total: b.total, outOfHoursFee: b.outOfHoursFee,
         discount: discount, amountDue: due === null ? Math.max(0, total + fee - discount) : due,
         bonusHours: Number(b.bonusHours || 0), creditsApplied: applied,
         payLink: payLinkOk(b.payLink), paid: String(b.paid) === "yes",
+        extras: parseList(b.extras, cleanChosen),
       };
+      var menu = parseList(b.extrasMenu, cleanMenu);
+      if (menu.length > 0) out.extrasMenu = menu;
+      return out;
+    });
+    // Extras the client chose that the app has not read yet are shown as chosen even if the app published in between.
+    db.read("queue").filter(function (q) { return q.kind === "extra" && q.clientToken === token && String(q.acked) !== "yes"; }).forEach(function (q) {
+      var want = {};
+      try { want = JSON.parse(q.payload || "{}").request || {}; } catch (e) { want = {}; }
+      bookings.forEach(function (b, i) {
+        if (b.id !== want.bookingId) return;
+        var changed = changeExtras(b.extrasMenu || [], b.extras, Number(b.amountDue), want.op, want.key);
+        if (changed) bookings[i] = Object.assign({}, b, { extras: changed.chosen, amountDue: changed.amountDue, payLink: "" });
+      });
     });
     // A date this client has just held, or a change just applied, shows at once; Coffee Van's next publish replaces it.
     db.read("holds").filter(function (h) { return h.clientToken === token; }).forEach(function (h) {
@@ -321,12 +386,13 @@ var StoreLogic = (function () {
       if (at >= 0) bookings[at] = Object.assign({}, bookings[at], moved);
       else {
         var heldTotal = Number(h.total || 0), heldFee = Number(h.outOfHoursFee || 0);
-        bookings.push(Object.assign({ id: h.id, status: "held", total: heldTotal, outOfHoursFee: heldFee, discount: 0, amountDue: heldTotal + heldFee, bonusHours: 0, creditsApplied: [] }, moved));
+        bookings.push(Object.assign({ id: h.id, status: "held", total: heldTotal, outOfHoursFee: heldFee, discount: 0, amountDue: heldTotal + heldFee, bonusHours: 0, creditsApplied: [], extras: [] }, moved));
       }
     });
     var reward = null;
     try { reward = cleanReward(JSON.parse(metaValue(db, "reward") || "null")); } catch (e) { reward = null; }
-    var pendingItems = db.read("queue").filter(function (q) { return q.clientToken === token && String(q.acked) !== "yes"; }).map(function (q) {
+    // An extra is already shown as chosen, so it is not "waiting for a text".
+    var pendingItems = db.read("queue").filter(function (q) { return q.clientToken === token && String(q.acked) !== "yes" && q.kind !== "extra"; }).map(function (q) {
       return { id: q.id, kind: q.kind, replyWithinHours: 24 };
     });
     var credits = db.read("credits").filter(function (c) { return c.clientToken === token; }).map(function (c) {
@@ -435,6 +501,49 @@ var StoreLogic = (function () {
       db.append("queue", {
         id: requestId, kind: kind, receivedAt: now, clientToken: client.token,
         payload: JSON.stringify({ request: fields, response: response }), acked: "no",
+      });
+      return response;
+    });
+  }
+
+  // A client adds or removes an extra (the logo on the foam) on one of their booked mornings. It must be on that booking's published
+  // menu (or already chosen, for a removal). It shows at once on the client's page, as a hold does, and is queued for Coffee Van, which
+  // applies it at its own price and refuses it after the cutoff; its next publish replaces the booking as truth.
+  function extra(db, body, now) {
+    var client = clientBy(db, body && body.k);
+    if (!client) return { ok: false, error: "not-found" };
+    var op = clean(body.op, 8), key = clean(body.key, 40), bookingId = clean(body.bookingId, 80);
+    if (op !== "add" && op !== "remove") return { ok: false, error: "bad-op" };
+    if (!key || !bookingId) return { ok: false, error: "bad-request" };
+
+    return db.lock(function () {
+      var rows = db.read("bookings");
+      var at = -1;
+      rows.forEach(function (b, i) { if (b.id === bookingId && b.clientToken === client.token) at = i; });
+      if (at < 0) return { ok: false, error: "not-found" };
+      var row = rows[at];
+      if (row.status !== "held" && row.status !== "confirmed") return { ok: false, error: "not-open" };
+      var menu = parseList(row.extrasMenu, cleanMenu);
+      var chosen = parseList(row.extras, cleanChosen);
+      var isChosen = chosen.some(function (c) { return c.key === key; });
+      var isOffered = menu.some(function (m) { return m.key === key; });
+      if (!isChosen && !isOffered) return { ok: false, error: "not-offered" };
+      var changed = changeExtras(menu, chosen, Number(row.amountDue), op, key);
+      if (!changed) return { ok: true, outcome: "unchanged", bookingId: bookingId }; // already how the client wants it
+
+      var queue = db.read("queue");
+      var since = Date.parse(now) - 24 * 60 * 60 * 1000;
+      var recent = queue.filter(function (q) { return q.kind === "extra" && q.clientToken === client.token && Date.parse(q.receivedAt) >= since; }).length;
+      if (recent >= EXTRA_CHANGES_PER_CLIENT_PER_DAY) return { ok: false, error: "too-many" };
+
+      var next = Object.assign({}, row, { extras: JSON.stringify(changed.chosen), amountDue: changed.amountDue, payLink: "" });
+      if (op === "add") next.paid = ""; // a card link or a payment made for the old amount no longer covers it
+      rows[at] = next;
+      db.write("bookings", rows);
+      var response = { ok: true, outcome: "applied", bookingId: bookingId };
+      db.append("queue", {
+        id: "extra-" + Date.parse(now) + "-" + queue.length, kind: "extra", receivedAt: now, clientToken: client.token,
+        payload: JSON.stringify({ request: { bookingId: bookingId, key: key, op: op }, response: response }), acked: "no",
       });
       return response;
     });
@@ -622,7 +731,7 @@ var StoreLogic = (function () {
   return {
     TABLES: TABLES, CONTRACT_VERSION: CONTRACT_VERSION, EVENT_TYPES: EVENT_TYPES,
     event: event, funnel: funnel,
-    health: health, publish: publish, pending: pending, ack: ack, prices: prices, session: session, request: request,
+    health: health, publish: publish, pending: pending, ack: ack, prices: prices, session: session, request: request, extra: extra,
     availability: availability, openTimes: openTimes, newHold: newHold, failureAlert: failureAlert,
     endTimeFor: endTimeFor, readRequest: readRequest,
   };
