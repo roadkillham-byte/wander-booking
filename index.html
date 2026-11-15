@@ -176,13 +176,12 @@ details.packwrap .pack{margin-top:6px}
           <tbody>
             <tr><th>You pay</th><td id="cmp-single">$1,832</td><td id="cmp-pack"><strong>$1,832</strong></td></tr>
             <tr><th>Length of mornings</th><td id="cmp-len-single">3 hours each</td><td><strong id="cmp-len-pack">3 hours each</strong></td></tr>
-            <tr id="row-bonus"><th>Bonus time</th><td>none</td><td><strong id="cmp-bonus">2 hours, worth $322, free</strong></td></tr>
             <tr><th>Price locked, 12 months</th><td>no</td><td><strong>yes</strong></td></tr>
             <tr><th>A morning we can't deliver</th><td>refund or new date</td><td><strong>refund or new date</strong></td></tr>
           </tbody>
         </table>
-        <p class="packline" id="packline">The same price as four single mornings, with bonus time thrown in.</p>
-        <p class="fine">Paid up front. Spend your bonus time on any of your four mornings, 30 minutes at a time. Pick the dates now or any time in 12 months, with 24 hours' notice. Cancel a morning with 24 hours' notice and it moves to another date.</p>
+        <p class="packline" id="packline">The same price as four single mornings, used any time in 12 months.</p>
+        <p class="fine">Paid up front. Pick the dates now or any time in 12 months, with 24 hours' notice. Cancel a morning with 24 hours' notice and it moves to another date.</p>
       </div>
       </details>
       <p class="promise-line"><strong>Late, no-show or not right? We make it right.</strong></p>
@@ -278,11 +277,10 @@ document.getElementById("ref-note").hidden = !referralCode;
 // Which door brought the visitor (first utm tag, 90 days). Untagged visitors are asked once, in one optional tap.
 const source = (() => { try { return window.WanderSource.captureSource(location.search, store, Date.now()); } catch (err) { return null; } })();
 document.getElementById("heard-wrap").hidden = !!source || !!referralCode;
-const { quote, packPrice, packBonus } = window.WanderQuote;
+const { quote, packPrice } = window.WanderQuote;
 const peopleEl = document.getElementById("people"), msg = document.getElementById("msg"), go = document.getElementById("go");
 const hours = () => Number(document.querySelector('input[name="hours"]:checked').value);
 const money = (n) => "$" + n.toLocaleString("en-AU");
-const hoursText = (h) => (h === 1 ? "1 hour" : h + " hours");
 const money2 = (v) => "$" + v.toFixed(2);
 // Fair comparisons, from real figures Sam keeps in config.js (WANDER_ANCHORS). Each is one line of totals for this visitor's
 // numbers. A package with tiers (guests, hours, price) is priced the way its seller prices it: the smallest tier that covers the
@@ -322,17 +320,14 @@ function showQuote() {
   showAnchor(n, h);
   document.getElementById("sub").textContent = n ? `${n} ${n === 1 ? "person" : "people"}, ${h} hours, including GST` : "Enter 1 to 500 people";
   if (!n) return;
-  // The 4-Pack is four mornings at the length chosen, at list price, and longer mornings earn more bonus time.
-  const pack = packPrice(n, h), bonus = packBonus(n, h);
+  // The 4-Pack is four mornings at the length chosen, at list price.
+  const pack = packPrice(n, h);
   document.getElementById("cmp-single").textContent = money(pack);
   document.getElementById("cmp-pack").innerHTML = "<strong>" + money(pack) + "</strong>";
   document.getElementById("cmp-len-single").textContent = h + " hours each";
   document.getElementById("cmp-len-pack").textContent = h + " hours each";
-  document.getElementById("row-bonus").hidden = bonus.blocks === 0;
-  document.getElementById("cmp-bonus").textContent = hoursText(bonus.hours) + ", worth " + money(bonus.value) + ", free";
-  document.getElementById("packline").textContent = bonus.blocks === 0
-    ? `For ${n} ${n === 1 ? "person" : "people"}: ${money(pack)} for four mornings of ${h} hours, paid once.`
-    : `For ${n} ${n === 1 ? "person" : "people"} at ${h} hours a morning: ${money(pack)} either way, and the 4-Pack adds ${hoursText(bonus.hours)} of coffee time worth ${money(bonus.value)}. Nothing to lose.`;
+  document.getElementById("packline").textContent =
+    `For ${n} ${n === 1 ? "person" : "people"}: ${money(pack)} for four mornings of ${h} hours, paid once.`;
 }
 document.addEventListener("input", showQuote); showQuote();
 // Choosing the 4-Pack opens its comparison; choosing a single morning folds it away.

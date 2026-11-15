@@ -40,16 +40,15 @@ function makeDb() {
   };
 }
 
-// Development price table: the catering formula with the approved ladder for 20 people (see the vault Rate Card).
+// Development price table: the catering formula (see the vault Rate Card). The 4-Pack is four singles, no bonus time.
 function devPrices(now) {
   const quoteOf = (p, h) => Math.round(p * (3.4 + 4.62 * h) + (h + 1) * 68.41);
-  const ladder = { 2: 1.5, 3: 2, 4: 2.5, 5: 3, 6: 3.5 };
   const quotes = {}, packs = {}, fees = {};
   for (let p = 1; p <= 200; p++) {
     quotes[p] = {}; packs[p] = {};
     for (const h of [2, 3, 4, 5, 6]) {
       quotes[p][h] = quoteOf(p, h);
-      packs[p][h] = { price: 4 * quoteOf(p, h), bonusHours: ladder[h], bonusValue: Math.round(ladder[h] * 2 * (0.5 * (p * 4.62 + 68.41))) };
+      packs[p][h] = { price: 4 * quoteOf(p, h) };
     }
   }
   for (let m = 0; m < 24 * 60; m += 30) {

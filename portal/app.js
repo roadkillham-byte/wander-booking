@@ -366,8 +366,7 @@
     var inner = '<section class="rise d1"><h2 class="rule">Four mornings, one at a time, or all four up front</h2>' +
       '<div class="ticket stack-up">' +
       "<p>Four mornings at " + hours + " hours for " + people + " people: <strong>" + money(pack.price) + "</strong></p>" +
-      "<p>Plus " + pack.bonusHours + " hours of coffee time, free, worth <strong>" + money(pack.bonusValue) + "</strong></p>" +
-      "<p>Four single mornings cost " + money(singles) + ". The 4-Pack costs the same, and adds the coffee time above.</p>" +
+      "<p>Four single mornings cost " + money(singles) + ". The 4-Pack costs the same, and you use your four mornings any time in 12 months.</p>" +
       '<p class="guarantee">If we don\'t turn up, you get a full refund.</p></div>' +
       '<p class="note">' + (paymentsOn()
         ? "You pay once, after we confirm your first morning. Valid 12 months."
@@ -426,8 +425,8 @@
   function renderPack() {
     var pack = state.session && state.session.pack;
     var inner = '<section class="rise d1"><h2 class="rule">My 4-Pack</h2>' +
-      (pack ? "<p>" + esc(pack.left) + " mornings left of " + esc(pack.mornings) + ". Bonus time: " + esc(pack.bonusHours) + " hours. Valid until " + esc(dayName(pack.expiresAt)) + ".</p>"
-        : "<p>You do not have a 4-Pack yet. Four mornings, paid up front, with bonus coffee time on top.</p>" +
+      (pack ? "<p>" + esc(pack.left) + " mornings left of " + esc(pack.mornings) + ". Valid until " + esc(dayName(pack.expiresAt)) + ".</p>"
+        : "<p>You do not have a 4-Pack yet. Four mornings, paid up front, for the price of four singles.</p>" +
           '<p><a href="#k=' + encodeURIComponent(state.k) + '&v=pick">Pick a morning first</a>, then we offer the 4-Pack.</p>') +
       '<p class="note pack-terms">' + esc(PACK_TERMS) + "</p></section>";
     return shell(inner, { nav: true, greet: "Your 4-Pack, " + firstName() + "." });
@@ -506,7 +505,7 @@
     var items = [
       ["Team Morning", "One morning for your team, booked as you need it.", "From " + money(p2) + " for 20 people, 2 hours, incl. GST."],
       ["Office Club", "Four mornings a month for a team of 20. Billed after each morning.", money(p2) + " a morning at 2 hours."],
-      ["Prepaid 4-Pack", "Four mornings, paid up front, with bonus time that grows with the length.", packs ? money(packs.price) + " for 20 people, 3 hours, with " + packs.bonusHours + " hours bonus." : ""],
+      ["Prepaid 4-Pack", "Four mornings, paid up front, for the price of four singles.", packs ? money(packs.price) + " for 20 people, 3 hours." : ""],
       ["Function Day", "A flat rate for a launch, open day or school event.", money(p3) + " for 20 people, 3 hours, incl. GST."],
     ];
     var rows = items.map(function (it) {

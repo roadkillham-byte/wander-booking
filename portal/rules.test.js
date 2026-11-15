@@ -190,3 +190,11 @@ test("suburbKeyFor names the suburb in an address, the farthest if several, and 
   assert.equal(R.suburbKeyFor("7 Nowhere Lane, Wyong"), "");
   assert.equal(R.suburbKeyFor(""), "");
 });
+
+// Sam, 16 Nov 2026: the 4-Pack has no bonus hours. A client page that still reads them would show a promise we no longer make.
+test("the client page never reads or prints 4-Pack bonus time", () => {
+  const src = require("node:fs").readFileSync(__dirname + "/app.js", "utf8");
+  for (const word of [/pack\.bonus/, /packs\.bonus/, /bonus time/i, /bonus coffee/i, /hours bonus/i, /coffee time/i, /free, worth/i]) {
+    assert.doesNotMatch(src, word, String(word));
+  }
+});
