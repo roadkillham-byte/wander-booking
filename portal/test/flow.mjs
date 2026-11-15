@@ -444,6 +444,19 @@ await check("a store that cannot be reached says so plainly and keeps the page a
   for (let i = errors.length - 1; i >= 0; i--) if (/ERR_FAILED/.test(errors[i])) errors.splice(i, 1);
 });
 
+await check("tapping Add says Adding... at once while a slow store answers, and the button cannot be tapped twice", async () => {
+  await page.goto(url + "/#k=" + MOCK_EXTRAS_HELD_TOKEN);
+  await page.waitForSelector(".extras button");
+  await page.route("**/*action=extra*", async (route) => { await new Promise((r) => setTimeout(r, 2500)); await route.continue().catch(() => undefined); });
+  await page.click(".extras button");
+  await page.waitForFunction(() => /Adding/.test(document.querySelector(".extras button")?.textContent || ""), null, { timeout: 800 });
+  if (!(await page.$eval(".extras button", (b) => b.disabled))) throw new Error("button still tappable while adding");
+  await page.waitForFunction(() => /Remove/.test(document.querySelector(".extras button")?.textContent || ""), null, { timeout: 8000 });
+  await page.unroute("**/*action=extra*");
+  await page.click(".extras button");
+  await page.waitForFunction(() => /^Add$/.test(document.querySelector(".extras button")?.textContent || ""), null, { timeout: 8000 });
+});
+
 await check("no page errors", async () => {
   if (errors.length) throw new Error(errors.join(" | "));
 });

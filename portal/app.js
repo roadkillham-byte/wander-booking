@@ -649,11 +649,14 @@
         if (state.busy) return;
         state.busy = true;
         btn.disabled = true;
+        // The store takes a few seconds to answer: say so at once, so a client never taps twice wondering if it worked.
+        btn.textContent = btn.getAttribute("data-op") === "remove" ? "Removing\u2026" : "Adding\u2026";
         track("cta", { v: "extra" });
         WanderApi.extra({ k: state.k, bookingId: btn.getAttribute("data-booking"), key: btn.getAttribute("data-extra"), op: btn.getAttribute("data-op") }).then(function (r) {
           state.busy = false;
           if (r && r.ok) return refresh().then(function () { showRoute(); });
           btn.disabled = false;
+          btn.textContent = btn.getAttribute("data-op") === "remove" ? "Remove" : "Add";
           flash(WanderApi.unreachable(r)
             ? "We could not reach our system just now, so nothing has changed. Please try again in a minute."
             : "That did not go through, so nothing has changed. Please try again, or reply to your email and we will sort it.");
