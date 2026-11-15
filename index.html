@@ -298,7 +298,7 @@ function showAnchor(n, h) {
     if (Array.isArray(a.tiers) && a.tiers.length) {
       const t = a.tiers.slice().sort((x, y) => x.guests - y.guests).find((x) => x.guests >= n && x.hours >= h);
       if (!t) return;
-      theirs = t.price; which = ` (their ${t.guests}-guest ${t.hours >= 8 ? "full-day" : t.hours + "-hour"} package)`;
+      theirs = t.price; which = ` (their ${t.guests}-${a.unit || "guest"} ${t.hours >= 8 ? "all-day" : t.hours + "-hour"} package${a.note ? ", " + a.note : ""})`;
     } else if (a.perPerson > 0) theirs = a.perPerson * n;
     if (!(theirs > 0)) return;
     const cheaper = ours <= theirs;

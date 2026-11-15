@@ -36,9 +36,10 @@ window.WANDER_CASES = [];
 //   perPerson: a flat dollars-a-head price.   coffeeOnly: true  when Wander costs more, the line says the difference is a full bowl each.
 //   wontInclude: what they usually leave out, only if true.
 // Wander is shown only where it is cheaper, or where the other package is coffee-only.
-// Given by Sam on 15 Nov 2026 (madisonavecoffee): coffee packages 2 h/50 guests $300, 3 h/100 $550, 4 h/200 $1,000, full day/300 $1,500;
-// "Premium high tea" $45 a head.
+// Checked against the seller's public coffee-service and catering pages on 15 Nov 2026 (source details are in the commit message, not on the page).
+// Their four coffee packages are priced by coffees included (50, 100, 200, 300), not by guests, and travel is $30 on top, so the
+// line says "coffee" and "plus $30 travel". $45 a head is their premium high tea; their basic high tea is $35 and lunch from $15.
 window.WANDER_ANCHORS = [
-  { label: "A coffee-only cart", coffeeOnly: true, tiers: [{ guests: 50, hours: 2, price: 300 }, { guests: 100, hours: 3, price: 550 }, { guests: 200, hours: 4, price: 1000 }, { guests: 300, hours: 24, price: 1500 }] },
-  { label: "A basic package", perPerson: 45 },
+  { label: "A coffee-only cart", coffeeOnly: true, unit: "coffee", note: "plus $30 travel", tiers: [{ guests: 50, hours: 2, price: 300 }, { guests: 100, hours: 3, price: 550 }, { guests: 200, hours: 4, price: 1000 }, { guests: 300, hours: 24, price: 1500 }] },
+  { label: "A premium high tea package", perPerson: 45 },
 ];
