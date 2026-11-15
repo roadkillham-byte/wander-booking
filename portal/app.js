@@ -420,12 +420,16 @@
     return shell(inner, { nav: true, greet: "Your morning, " + firstName() + "." });
   }
 
+  // Same words as the quote and confirmation emails (Sam, 15 Nov 2026).
+  var PACK_TERMS = "Terms: the 4-Pack does not include photography, and we do not use photos of your people or premises in our advertising unless you agree to it first.";
+
   function renderPack() {
     var pack = state.session && state.session.pack;
     var inner = '<section class="rise d1"><h2 class="rule">My 4-Pack</h2>' +
       (pack ? "<p>" + esc(pack.left) + " mornings left of " + esc(pack.mornings) + ". Bonus time: " + esc(pack.bonusHours) + " hours. Valid until " + esc(dayName(pack.expiresAt)) + ".</p>"
         : "<p>You do not have a 4-Pack yet. Four mornings, paid up front, with bonus coffee time on top.</p>" +
-          '<p><a href="#k=' + encodeURIComponent(state.k) + '&v=pick">Pick a morning first</a>, then we offer the 4-Pack.</p>') + "</section>";
+          '<p><a href="#k=' + encodeURIComponent(state.k) + '&v=pick">Pick a morning first</a>, then we offer the 4-Pack.</p>') +
+      '<p class="note pack-terms">' + esc(PACK_TERMS) + "</p></section>";
     return shell(inner, { nav: true, greet: "Your 4-Pack, " + firstName() + "." });
   }
 
