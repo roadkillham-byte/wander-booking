@@ -17,7 +17,7 @@ var StoreLogic = (function () {
   var CREDIT_KINDS = ["returning", "referral", "friend", "captain"];
 
   var TABLES = {
-    clients: ["token", "firstName", "referralCode", "quote", "referrals", "club"],
+    clients: ["token", "firstName", "referralCode", "quote", "referrals", "club", "contract"],
     events: ["time", "type", "data"],
     bookings: ["id", "clientToken", "status", "date", "startTime", "endTime", "people", "hours", "address", "total", "outOfHoursFee", "requestId",
       "discount", "amountDue", "bonusHours", "creditsApplied", "payLink", "paid",
@@ -110,6 +110,28 @@ var StoreLogic = (function () {
     return { month: String(c.month), used: used, perMonth: perMonth };
   }
 
+  // A client's prepaid contract, as Coffee Van publishes it for their page: counts, dates and the next instalment only. Never a method
+  // of payment, an account detail or anything about another client.
+  var CONTRACT_STATUS = ["active", "cancelled", "complete"];
+  function cleanContract(c) {
+    if (!c || typeof c !== "object") return null;
+    var months = Number(c.termMonths);
+    if ([3, 6, 12].indexOf(months) < 0 || CONTRACT_STATUS.indexOf(c.status) < 0) return null;
+    var mornings = money(c.mornings), used = money(c.used), freeHours = money(c.freeHours), freeUsed = money(c.freeHoursUsed);
+    if (mornings === null || used === null || freeHours === null || freeUsed === null || mornings < 1 || used < 0 || used > mornings) return null;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(c.startDate)) || !/^\d{4}-\d{2}-\d{2}$/.test(String(c.endDate))) return null;
+    var next = null;
+    if (c.nextInstalment && /^\d{4}-\d{2}-\d{2}$/.test(String(c.nextInstalment.dueDate)) && money(c.nextInstalment.amount) !== null) {
+      next = { dueDate: String(c.nextInstalment.dueDate), amount: money(c.nextInstalment.amount) };
+    }
+    return {
+      termMonths: months, status: String(c.status), mornings: mornings, used: used, left: mornings - used,
+      startDate: String(c.startDate), endDate: String(c.endDate),
+      freeHours: freeHours, freeHoursUsed: freeUsed, freeHoursUnlocked: c.freeHoursUnlocked === true,
+      pausedWeeks: money(c.pausedWeeks) || 0, nextInstalment: next,
+    };
+  }
+
   // The referral offer in numbers, published by Coffee Van so the page's words follow what Coffee Van gives.
   function cleanReward(r) {
     if (!r || typeof r !== "object") return null;
@@ -187,7 +209,7 @@ var StoreLogic = (function () {
     for (var i = 0; i < rows.length; i++) if (rows[i].token === token) return rows[i];
     var fresh = db.read("newclients");
     for (var j = 0; j < fresh.length; j++) {
-      if (fresh[j].token === token) return { token: fresh[j].token, firstName: fresh[j].firstName, referralCode: "", quote: "", referrals: "[]", club: "" };
+      if (fresh[j].token === token) return { token: fresh[j].token, firstName: fresh[j].firstName, referralCode: "", quote: "", referrals: "[]", club: "", contract: "" };
     }
     return null;
   }
@@ -211,11 +233,14 @@ var StoreLogic = (function () {
     return fields.shownTotal === null || fields.shownTotal === undefined ? 0 : Math.max(0, Number(fields.shownTotal) - Number(fields.shownFee || 0));
   }
 
+  var ENQUIRIES = ["contract-3", "contract-6", "contract-12", "photographer"];
+
   function copyFor(outcome, replyWithinHours, startTime) {
     if (outcome === "held") return "Held. We will confirm within " + replyWithinHours + " hours.";
     if (outcome === "applied") return "Done. Your morning now starts at " + startTime + ".";
     if (outcome === "cancel") return "We have your cancellation. We will confirm your credit within " + replyWithinHours + " hours.";
     if (outcome === "pack") return "Requested: we will confirm your first morning within " + replyWithinHours + " hours. Nothing is charged.";
+    if (outcome === "enquiry") return "Thanks, we have your question. Sam will ring you within " + replyWithinHours + " hours. Nothing is charged.";
     if (outcome === "call") return "Requested: we will ring you within " + replyWithinHours + " hours.";
     return "Requested: we will text you within " + replyWithinHours + " hours to confirm this.";
   }
@@ -262,6 +287,7 @@ var StoreLogic = (function () {
           quote: c.quote ? JSON.stringify(c.quote) : "",
           referrals: JSON.stringify(cleanReferrals(c.referrals)),
           club: JSON.stringify(cleanClub(c.club)),
+          contract: JSON.stringify(cleanContract(c.contract)),
         };
       });
       var bookings = (snapshot.bookings || []).map(function (b) {
@@ -363,6 +389,8 @@ var StoreLogic = (function () {
     try { referrals = client.referrals ? cleanReferrals(JSON.parse(client.referrals)) : []; } catch (e) { referrals = []; }
     var club = null;
     try { club = client.club ? cleanClub(JSON.parse(client.club)) : null; } catch (e) { club = null; }
+    var contract = null;
+    try { contract = client.contract ? cleanContract(JSON.parse(client.contract)) : null; } catch (e) { contract = null; }
     var bookings = db.read("bookings").filter(function (b) { return b.clientToken === token; }).map(function (b) {
       var applied = [];
       try { applied = b.creditsApplied ? cleanLabels(JSON.parse(b.creditsApplied)) : []; } catch (e) { applied = []; }
@@ -424,6 +452,7 @@ var StoreLogic = (function () {
       pending: pendingItems,
       credits: credits,
       pack: null,
+      contract: contract,
     };
   }
 
@@ -454,6 +483,12 @@ var StoreLogic = (function () {
         fields = { bookingId: clean(body.bookingId, 80) };
       } else if (kind === "call") {
         fields = { when: clean(body.when, 80), note: clean(body.note, 300) };
+      } else if (kind === "enquiry") {
+        // One generic "ask us about it" request, priced by nobody here: Sam rings the client. Today: paying ahead for 3, 6 or 12 months,
+        // and (once its hourly rate is known) a photographer. A new kind of enquiry is one more entry in ENQUIRIES.
+        var what = clean(body.enquiry, 24);
+        if (ENQUIRIES.indexOf(what) < 0) return { ok: false, error: "bad-enquiry" };
+        fields = { enquiry: what, note: clean(body.note, 300) };
       } else {
         return { ok: false, error: "unknown-kind" };
       }
@@ -500,6 +535,9 @@ var StoreLogic = (function () {
         if (!target) return { ok: false, error: "not-found" };
         var reply3 = WanderRules.replyWithinHours(now, target.date, target.startTime);
         response = { ok: true, outcome: "requested", replyWithinHours: reply3, bookingId: target.id, message: copyFor("cancel", reply3) };
+        fields.decision = "requested";
+      } else if (kind === "enquiry") {
+        response = { ok: true, outcome: "requested", replyWithinHours: 24, message: copyFor("enquiry", 24) };
         fields.decision = "requested";
       } else if (kind === "pack") {
         var reply4 = WanderRules.replyWithinHours(now, fields.date, fields.startTime);
@@ -600,6 +638,8 @@ var StoreLogic = (function () {
       var asOf = metaValue(db, "asOf");
       var held = WanderRules.decideHold({ date: fields.date, startTime: fields.startTime, hours: fields.hours, travelKm: fields.travelKm }, busyOn(db, fields.date), asOf, now);
       var reply = WanderRules.replyWithinHours(now, fields.date, fields.startTime);
+      // A contract enquiry (the booking page's "Prepaid contract" choice) is a request Sam confirms by phone: it never holds the van's slot.
+      if (/^Prepaid contract/i.test(clean(body.package, 40)) && held.decision === "held") held = { decision: "requested", reasons: (held.reasons || []).concat(["contract enquiry"]) };
       var response = { ok: true, outcome: held.decision, replyWithinHours: reply, key: key, message: copyFor(held.decision === "held" ? "held" : "requested", reply) };
       if (held.decision === "held") {
         var holdId = "hold-" + requestId;

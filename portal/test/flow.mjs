@@ -1,7 +1,7 @@
 // End-to-end check of the client journey in a headless browser at phone width: link, Held, Book, the 4-Pack offer,
 // a plain decline, and the confirmation. Run: node test/flow.mjs   (uses the Playwright install in render-engine).
 import { createRequire } from "node:module";
-import { startMock, MOCK_CLIENT_TOKEN, MOCK_RETURNING_TOKEN, MOCK_HANDMADE_TOKEN, MOCK_TWO_TOKEN, MOCK_EXTRAS_HELD_TOKEN, MOCK_EXTRAS_CONFIRMED_TOKEN, MOCK_EXTRAS_NONE_TOKEN, MOCK_EXTRAS_CANCELLED_TOKEN } from "../mock.mjs";
+import { startMock, MOCK_CLIENT_TOKEN, MOCK_RETURNING_TOKEN, MOCK_HANDMADE_TOKEN, MOCK_TWO_TOKEN, MOCK_CONTRACT_TOKEN, MOCK_EXTRAS_HELD_TOKEN, MOCK_EXTRAS_CONFIRMED_TOKEN, MOCK_EXTRAS_NONE_TOKEN, MOCK_EXTRAS_CANCELLED_TOKEN } from "../mock.mjs";
 const require = createRequire(import.meta.url);
 const { chromium } = require(process.env.HOME + "/render-engine/node_modules/playwright-core");
 
@@ -503,6 +503,34 @@ await check("the plan comparison describes the 4-Pack without bonus time", async
   const t = await page.innerText("#app");
   if (/bonus/i.test(t)) throw new Error("bonus mentioned: " + t);
   if (!t.includes("Four mornings, paid up front, for the price of four singles.")) throw new Error("wrong compare copy");
+});
+
+await check("My 4-Pack offers paying ahead, and an enquiry reaches Sam with nothing charged", async () => {
+  await page.goto(url + "/#k=" + MOCK_CLIENT_TOKEN + "&v=pack");
+  await page.waitForSelector("#app h2");
+  const t = await page.innerText("#app");
+  if (!t.includes("Regular mornings? Pay ahead")) throw new Error("no contract offer: " + t.slice(0, 300));
+  if (!/6 months: 24 mornings/.test(t) || !/Paid by bank transfer\./.test(t)) throw new Error("terms wrong: " + t);
+  if (/bonus/i.test(t)) throw new Error("bonus mentioned");
+  await noOverflowAndNoJunk("pay ahead offer");
+  await page.screenshot({ path: shots + "/dash-contract-offer.png", fullPage: true });
+  await page.click('button[data-enquiry="contract-6"]');
+  await page.waitForFunction(() => document.getElementById("app").innerText.includes("Sam will ring you"));
+  if (!(await page.innerText("#app")).includes("Nothing is charged")) throw new Error("no no-charge line");
+  const queued = db.tables.queue.filter((x) => x.kind === "enquiry");
+  if (queued.length !== 1 || JSON.parse(queued[0].payload).request.enquiry !== "contract-6") throw new Error("enquiry not queued once");
+});
+await check("My contract shows mornings left, free hours, the next payment, and a way to book", async () => {
+  await page.goto(url + "/#k=" + MOCK_CONTRACT_TOKEN + "&v=contract");
+  await page.waitForSelector("#app h2");
+  const t = await page.innerText("#app");
+  if (!/21 mornings left of 24/.test(t)) throw new Error("wrong count: " + t.slice(0, 300));
+  if (!/Free service hours: 2, unlocked after 12 mornings/.test(t)) throw new Error("free hours line wrong: " + t);
+  if (!/Next payment: \$1,832 due /.test(t)) throw new Error("no next payment: " + t);
+  if (!t.includes("Book a morning")) throw new Error("no booking link");
+  if (!t.includes("My contract")) throw new Error("no nav link");
+  await noOverflowAndNoJunk("My contract");
+  await page.screenshot({ path: shots + "/dash-contract.png", fullPage: true });
 });
 
 await check("no page errors", async () => {

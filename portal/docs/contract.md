@@ -42,6 +42,7 @@ adapter in `store/Adapter.gs`) and Coffee Van's sync (`server/dashboardSync.mjs`
 - `club`: `null` for a client who is not an Office Club member, else `{month: "YYYY-MM", used, perMonth}`: how many of their mornings this month are booked (any that is not cancelled), out of `perMonth` (4). Coffee Van counts them; the page shows a stamp card.
 - `reward`: `{referrerPercent, friendPercent, captainEvery, captainFreeHours}`, the referral offer in numbers, published by Coffee Van
   so the page's words never drift from what Coffee Van gives (10, 10, 3, 2 today). `null` until the first publish.
+- `contract`: `null`, or a prepaid Office Club contract (Sam, 16 Nov 2026): `{termMonths: 3|6|12, status: "active"|"cancelled"|"complete", mornings, used, left, startDate, endDate, freeHours, freeHoursUsed, freeHoursUnlocked, pausedWeeks, nextInstalment: {dueDate, amount} | null}`. Published by Coffee Van per client (the clients table's `contract` column, JSON); the store keeps counts and dates only and drops anything malformed (an unknown term, `used` above `mornings`, a bad date). The page shows "My contract" and the nav link only when it is present. No payment method, account or amount paid is ever published.
 - `pack`: `null`, or `{mornings: 4, used, left, expiresAt}`. The 4-Pack has no bonus time (Sam, 16 Nov 2026); a `bonusHours` an older snapshot may carry is ignored by the page.
 - `asOf`, `stale`.
 
@@ -80,6 +81,7 @@ when the client taps it. `bookingId` leaves that client's own booking out of the
 | `cancel` | `bookingId` | `requested` (credit confirmed by Sam until amount credits exist) |
 | `pack` | `date, startTime, people, hours` | `requested` (Sam confirms the first date; no charge) |
 | `call` | `when, note` | `requested` |
+| `enquiry` | `enquiry, note` | `requested` (Sam rings; nothing is charged). `enquiry` is one of `contract-3`, `contract-6`, `contract-12`, `photographer` (`bad-enquiry` otherwise). One generic kind: a new thing to ask about is one more name in the store's `ENQUIRIES` list. |
 
 `hold` and `change` may also send `shownTotal` and `shownFee`: the total and out-of-hours fee the page showed. Coffee Van compares them with its own price and flags any difference; it books at its own price.
 
@@ -89,6 +91,8 @@ Examples: `fixtures/contract/request-hold.json` and its two responses.
 Rules applied by the store (shared logic, `rules.js`): notice of 24 hours or more, the whole booking inside the trading hours
 (every day, 07:00 to 16:00), slot free on the van with a 60-minute gap, address within 50 km (the page sends the `suburb` the client picked; the store works the distance out from it, or from the suburb named in `address`, and never trusts a distance sent by the page; an unknown place or "other" is `requested`). Any miss is `requested`, never an error. A hold is checked against published busy times **and** holds
 still waiting in the store, under a lock, so two clients cannot hold the same slot.
+
+A first-time client who chooses "Pay ahead" on the booking page sends the ordinary `newhold` with `package: "Prepaid contract 3 months"` (or 6, 12). The store never holds the van's slot for it: the outcome is `requested`, Sam confirms by phone.
 
 ## Extras (client, token)
 

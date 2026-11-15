@@ -17,6 +17,8 @@ export const MOCK_CLIENT_TOKEN = "CLIENT-TOKEN-FIXTURE-0000000000";
 export const MOCK_RETURNING_TOKEN = "CLIENT-TOKEN-RETURNING-0000000";
 export const MOCK_HANDMADE_TOKEN = "CLIENT-TOKEN-HANDMADE-000000000";
 export const MOCK_TWO_TOKEN = "CLIENT-TOKEN-TWOBOOKINGS-000000";
+// A client holding a prepaid contract: 6 months, 24 mornings, 3 delivered.
+export const MOCK_CONTRACT_TOKEN = "CLIENT-TOKEN-CONTRACT-0000000000";
 // Extras (the logo on the foam): a held morning, a confirmed one with a card link, one the app offers nothing on, one cancelled.
 export const MOCK_EXTRAS_HELD_TOKEN = "CLIENT-TOKEN-EXTRAS-HELD-0000000";
 export const MOCK_EXTRAS_CONFIRMED_TOKEN = "CLIENT-TOKEN-EXTRAS-CONF-0000000";
@@ -78,6 +80,7 @@ export function seededDb(now = new Date().toISOString()) {
       { token: MOCK_RETURNING_TOKEN, firstName: "Sam", referralCode: "H4BC-7WDR" },
       { token: MOCK_HANDMADE_TOKEN, firstName: "Pat", referralCode: "" },
       { token: MOCK_TWO_TOKEN, firstName: "Lee", referralCode: "", club: { month: now.slice(0, 7), used: 2, perMonth: 4 } },
+      { token: MOCK_CONTRACT_TOKEN, firstName: "Kim", referralCode: "", contract: { termMonths: 6, status: "active", mornings: 24, used: 3, freeHours: 2, freeHoursUsed: 0, freeHoursUnlocked: false, startDate: "2026-12-01", endDate: "2027-05-31", pausedWeeks: 0, nextInstalment: { dueDate: "2027-01-01", amount: 1832 } } },
       { token: MOCK_EXTRAS_HELD_TOKEN, firstName: "Hana", referralCode: "" },
       { token: MOCK_EXTRAS_CONFIRMED_TOKEN, firstName: "Chris", referralCode: "" },
       { token: MOCK_EXTRAS_NONE_TOKEN, firstName: "Noor", referralCode: "" },

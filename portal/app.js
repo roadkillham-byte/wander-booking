@@ -102,6 +102,7 @@
     var navHtml = !opts.nav ? "" :
       '<nav class="top"><a href="#k=' + encodeURIComponent(state.k) + '&v=bookings">My bookings</a>' +
       '<a href="#k=' + encodeURIComponent(state.k) + '&v=pack">My 4-Pack</a>' +
+      (state.session && state.session.contract ? '<a href="#k=' + encodeURIComponent(state.k) + '&v=contract">My contract</a>' : "") +
       '<a href="#k=' + encodeURIComponent(state.k) + '&v=compare">Compare options</a>' +
       '<a href="#k=' + encodeURIComponent(state.k) + '&v=refer">Refer a team</a></nav>';
     return '<header class="band rise"><img src="assets/wander-logo.png" alt="Wander Coffee Van">' +
@@ -428,8 +429,57 @@
       (pack ? "<p>" + esc(pack.left) + " mornings left of " + esc(pack.mornings) + ". Valid until " + esc(dayName(pack.expiresAt)) + ".</p>"
         : "<p>You do not have a 4-Pack yet. Four mornings, paid up front, for the price of four singles.</p>" +
           '<p><a href="#k=' + encodeURIComponent(state.k) + '&v=pick">Pick a morning first</a>, then we offer the 4-Pack.</p>') +
-      '<p class="note pack-terms">' + esc(PACK_TERMS) + "</p></section>";
+      '<p class="note pack-terms">' + esc(PACK_TERMS) + "</p></section>" + contractOfferHtml();
     return shell(inner, { nav: true, greet: "Your 4-Pack, " + firstName() + "." });
+  }
+
+  // Paying ahead (Sam, 16 Nov 2026): three terms, asked about by enquiry. Nothing is charged here; Sam rings to set it up. The price per
+  // morning is the single-morning price (the 4-Pack price is four of them); the free service hours are confirmed on the call.
+  var CONTRACT_OFFERS = [
+    { key: "contract-3", months: 3, mornings: 12, how: "bank transfer or card" },
+    { key: "contract-6", months: 6, mornings: 24, how: "bank transfer" },
+    { key: "contract-12", months: 12, mornings: 48, how: "bank transfer" },
+  ];
+  function contractOfferHtml() {
+    var q = state.session && state.session.quote;
+    var pack = packFor(q ? q.people : 20, q ? q.hours : 3);
+    var morning = pack ? Number(pack.price) / 4 : null;
+    var rows = CONTRACT_OFFERS.map(function (o) {
+      var total = morning ? morning * o.mornings : null;
+      return "<li><strong>" + o.months + " months</strong>: " + o.mornings + " mornings" +
+        (total ? " at " + money(morning) + " each, " + money(total) + " in all, or " + money(total / o.months) + " a month" : "") +
+        ". Paid by " + o.how + '. <button type="button" class="go ghost" data-enquiry="' + o.key + '">Ask about this</button></li>';
+    }).join("");
+    return '<section class="rise d2"><h2 class="rule">Regular mornings? Pay ahead</h2>' +
+      "<p>Four mornings a month for a term, at the single-morning price, with free service hours on top. Book as many of your paid mornings as you like, any time in the term. Pause up to 6 weeks. Unused mornings are refunded.</p>" +
+      '<ul class="contract-offers">' + rows + "</ul>" +
+      '<p class="note">Nothing is charged here. Ask, and Sam will ring you to set it up.</p></section>';
+  }
+
+  function renderEnquirySent(resp) {
+    var inner = '<section class="rise d1"><h2 class="rule">Thank you</h2><p>' + esc((resp && resp.message) || "We have your question. Sam will ring you within 24 hours. Nothing is charged.") + "</p></section>";
+    return shell(inner, { nav: true, greet: "Thanks, " + firstName() + "." });
+  }
+
+  function renderContract() {
+    var c = state.session && state.session.contract;
+    var link = '<p><a class="go" href="#k=' + encodeURIComponent(state.k) + '&v=pick">Book a morning</a></p>';
+    var inner;
+    if (!c) {
+      inner = '<section class="rise d1"><h2 class="rule">My contract</h2><p>You do not have a contract yet.</p></section>' + contractOfferHtml();
+    } else {
+      var halfway = Math.ceil(c.mornings / 2);
+      inner = '<section class="rise d1"><h2 class="rule">My contract</h2>' +
+        "<p><strong>" + esc(c.left) + " mornings left</strong> of " + esc(c.mornings) + ", " + esc(c.termMonths) + " months from " + esc(dayName(c.startDate)) + " to " + esc(dayName(c.endDate)) +
+        (c.status === "cancelled" ? ". This contract has ended." : c.status === "complete" ? ". All mornings delivered." : ".") + "</p>" +
+        "<p>Book as many of your paid mornings as you like, any time in the term.</p>" +
+        (c.freeHours > 0 ? "<p>Free service hours: " + esc(c.freeHours) + (c.freeHoursUnlocked ? (c.freeHoursUsed ? " (" + esc(c.freeHoursUsed) + " used)" : ", ready to use.") : ", unlocked after " + esc(halfway) + " mornings.") + "</p>" : "") +
+        (c.pausedWeeks ? "<p>Paused so far: " + esc(c.pausedWeeks) + " of 6 weeks.</p>" : "") +
+        (c.nextInstalment ? "<p>Next payment: " + money(c.nextInstalment.amount) + " due " + esc(dayName(c.nextInstalment.dueDate)) + ".</p>" : "") +
+        (c.status === "active" ? link : "") +
+        '<p class="note">To pause, change or ask anything, ring us on ' + esc(window.WANDER_PHONE_DISPLAY || "") + ".</p></section>";
+    }
+    return shell(inner, { nav: true, greet: "Your contract, " + firstName() + "." });
   }
 
   var ORDINALS = { 2: "second", 3: "third", 4: "fourth", 5: "fifth" };
@@ -565,6 +615,7 @@
       var b = list.filter(function (x) { return x.id === body.bookingId; })[0];
       return "I would like to cancel my morning" + (b ? " on " + dayName(b.date) + " at " + clock(b.startTime) : "") + ".";
     }
+    if (body.kind === "enquiry") return "Please ring me about " + (body.enquiry === "photographer" ? "a photographer" : "paying ahead for " + String(body.enquiry).replace("contract-", "") + " months") + ".";
     if (body.kind === "call") return "Please ring me" + (body.when ? ": " + body.when : "") + ".";
     var what = { hold: "book", change: "change my booking to", pack: "ask about a 4-Pack starting" }[body.kind] || "book";
     return "I tried to " + what + " " + dayName(body.date) + " at " + clock(body.startTime) + " for " + body.people + " people, " + body.hours +
@@ -641,6 +692,13 @@
       var b = state.lastHold || {};
       send({ k: state.k, kind: "pack", requestId: uid(), date: b.date, startTime: b.startTime, people: b.people, hours: b.hours },
         function (resp) { showPage(renderConfirmed(resp)); });
+    });
+    Array.prototype.forEach.call(app.querySelectorAll("button[data-enquiry]"), function (btn) {
+      btn.addEventListener("click", function () {
+        if (state.busy) return;
+        track("cta", { v: "enquiry-" + btn.getAttribute("data-enquiry") });
+        send({ k: state.k, kind: "enquiry", requestId: uid(), enquiry: btn.getAttribute("data-enquiry") }, function (resp) { showPage(renderEnquirySent(resp)); });
+      });
     });
     var no = document.getElementById("pack-no");
     if (no) no.addEventListener("click", function () {
@@ -787,6 +845,7 @@
     else if (v === "bookings") html = renderBookings();
     else if (v === "booking") html = renderBooking();
     else if (v === "pack") html = renderPack();
+    else if (v === "contract") html = renderContract();
     else if (v === "compare") html = renderCompare();
     else if (v === "refer") html = renderRefer();
     else if (v === "call") html = renderCall();

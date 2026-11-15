@@ -695,6 +695,20 @@ test("a far suburb, a taken slot and an unknown place are requested, never held,
   assert.ok(taken.key && S.session(db, taken.key, NOW).ok);
 });
 
+test("a prepaid contract enquiry is requested, never held, so it does not block the van; the package reaches Sam", () => {
+  const db = makeDb();
+  publish(db);
+  const r = S.newHold(db, newhold({ requestId: "ct-1", email: "ct@example.com", package: "Prepaid contract 6 months" }), NOW);
+  assert.equal(r.ok, true);
+  assert.equal(r.outcome, "requested");
+  assert.equal(db.tables.holds.length, 0);
+  const q = db.tables.queue.filter((x) => x.kind === "newhold");
+  assert.equal(JSON.parse(q[0].payload).request.package, "Prepaid contract 6 months");
+  assert.ok(r.key && S.session(db, r.key, NOW).ok);
+  // an ordinary single morning at the same time is still held
+  assert.equal(S.newHold(db, newhold({ requestId: "ct-2", email: "ct2@example.com", package: "Single morning" }), NOW).outcome, "held");
+});
+
 test("a bad request writes nothing: no name, a short phone, a bad email, bad people, a bad date", () => {
   const db = makeDb();
   publish(db);
@@ -969,4 +983,51 @@ test("extras: a booking the page holds but the app has not published yet gets no
   assert.equal(held.extrasMenu, undefined);
   assert.deepEqual(held.extras, []);
   assert.equal(S.extra(db, extraBody({ bookingId: "hold-req-h1" }), NOW).error, "not-found");
+});
+
+// ---- prepaid contracts (Sam, 16 Nov 2026): published per client, shown on the client's page, asked about by enquiry ----
+
+const contractFor = (over = {}) => ({
+  termMonths: 6, status: "active", mornings: 24, used: 3, freeHours: 2, freeHoursUsed: 0, freeHoursUnlocked: false,
+  startDate: "2026-12-01", endDate: "2027-05-31", pausedWeeks: 0, nextInstalment: { dueDate: "2027-01-01", amount: 1832 },
+  ...over,
+});
+
+test("a published contract reaches only its own client's session, as counts and dates", () => {
+  const db = makeDb();
+  const alex = "TOKEN-ALEX-0000000000000001", sam = "TOKEN-SAM-00000000000000002";
+  const withContract = (contract) => publish(db, { clients: [{ token: alex, firstName: "Alex", referralCode: "K7M2-QXTP", contract }, { token: sam, firstName: "Sam", referralCode: "H4BC-7WDR" }] });
+  assert.equal(withContract({ ...contractFor(), bank: "123-456", method: "bank" }).ok, true);
+  const mine = S.session(db, alex, NOW);
+  assert.equal(mine.contract.left, 21);
+  assert.equal(mine.contract.termMonths, 6);
+  assert.deepEqual(mine.contract.nextInstalment, { dueDate: "2027-01-01", amount: 1832 });
+  assert.equal(JSON.stringify(mine.contract).includes("bank"), false);
+  assert.equal(S.session(db, sam, NOW).contract, null);
+});
+
+test("a malformed or impossible contract is dropped, not shown", () => {
+  const db = makeDb();
+  const alex = "TOKEN-ALEX-0000000000000001";
+  for (const bad of [contractFor({ termMonths: 5 }), contractFor({ used: 99 }), contractFor({ status: "weird" }), contractFor({ startDate: "soon" }), "x"]) {
+    publish(db, { clients: [{ token: alex, firstName: "Alex", referralCode: "K7M2-QXTP", contract: bad }] });
+    assert.equal(S.session(db, alex, NOW).contract, null);
+  }
+});
+
+test("an enquiry (paying ahead, a photographer) is a request for Sam to ring, queued once, with no charge", () => {
+  const db = makeDb();
+  publish(db);
+  const k = "TOKEN-ALEX-0000000000000001";
+  const r = S.request(db, { k, kind: "enquiry", requestId: "enq-1", enquiry: "contract-6", note: "Twenty staff, Fridays" }, NOW);
+  assert.equal(r.ok, true);
+  assert.equal(r.outcome, "requested");
+  assert.match(r.message, /Sam will ring you within 24 hours\. Nothing is charged/);
+  const again = S.request(db, { k, kind: "enquiry", requestId: "enq-1", enquiry: "contract-6" }, NOW);
+  assert.deepEqual(again, r);
+  const q = db.tables.queue.filter((x) => x.kind === "enquiry");
+  assert.equal(q.length, 1);
+  assert.equal(JSON.parse(q[0].payload).request.enquiry, "contract-6");
+  assert.equal(S.request(db, { k, kind: "enquiry", requestId: "enq-2", enquiry: "free-money" }, NOW).error, "bad-enquiry");
+  assert.equal(S.request(db, { k, kind: "enquiry", requestId: "enq-3", enquiry: "photographer" }, NOW).outcome, "requested");
 });

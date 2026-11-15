@@ -159,6 +159,15 @@ details.packwrap .pack{margin-top:6px}
       <div class="pkg" role="radiogroup" aria-labelledby="pkg-label">
         <label><input type="radio" name="package" value="Single morning" checked><span>Single morning</span></label>
         <label><input type="radio" name="package" value="Office Club 4-Pack"><span>4-Pack, best value</span></label>
+        <label><input type="radio" name="package" value="Prepaid contract"><span>Pay ahead, 3 to 12 months</span></label>
+      </div>
+      <div id="contract-term-wrap" hidden>
+        <label for="contract-term">How long?</label>
+        <select id="contract-term" aria-label="Contract length">
+          <option value="3">3 months</option>
+          <option value="6">6 months</option>
+          <option value="12">12 months</option>
+        </select>
       </div>
       </div>
       <div class="tag" aria-live="polite">
@@ -182,6 +191,17 @@ details.packwrap .pack{margin-top:6px}
         </table>
         <p class="packline" id="packline">The same price as four single mornings, used any time in 12 months.</p>
         <p class="fine">Paid up front. Pick the dates now or any time in 12 months, with 24 hours' notice. Cancel a morning with 24 hours' notice and it moves to another date.</p>
+      </div>
+      </details>
+      <details class="packwrap" id="contractwrap"><summary>Regular mornings? See paying ahead for 3, 6 or 12 months</summary>
+      <div class="pack" id="contract">
+        <div class="packhead"><strong>Office Club, paid ahead</strong></div>
+        <table class="cmp" aria-label="Prepaid Office Club contract options">
+          <thead><tr><th>Length</th><th>Mornings</th><th>You pay</th><th>Free service hours</th></tr></thead>
+          <tbody id="contract-rows"></tbody>
+        </table>
+        <p class="packline" id="contractline">Four mornings a month at the single-morning price, paid ahead.</p>
+        <p class="fine">Pay all at once, or monthly in advance. The 6 and 12 month contracts are paid by bank transfer; 3 months can be bank transfer or card. Book as many of your paid mornings as you like, any time in the term. The price is held for the whole term. Free service hours unlock after half your mornings. Pause up to 6 weeks. Unused mornings are refunded. Nothing is charged online: choose this, send the form, and Sam will ring you to set it up.</p>
       </div>
       </details>
       <p class="promise-line"><strong>Late, no-show or not right? We make it right.</strong></p>
@@ -277,7 +297,7 @@ document.getElementById("ref-note").hidden = !referralCode;
 // Which door brought the visitor (first utm tag, 90 days). Untagged visitors are asked once, in one optional tap.
 const source = (() => { try { return window.WanderSource.captureSource(location.search, store, Date.now()); } catch (err) { return null; } })();
 document.getElementById("heard-wrap").hidden = !!source || !!referralCode;
-const { quote, packPrice } = window.WanderQuote;
+const { quote, packPrice, contractTerms } = window.WanderQuote;
 const peopleEl = document.getElementById("people"), msg = document.getElementById("msg"), go = document.getElementById("go");
 const hours = () => Number(document.querySelector('input[name="hours"]:checked').value);
 const money = (n) => "$" + n.toLocaleString("en-AU");
@@ -313,12 +333,16 @@ function showAnchor(n, h) {
 function validPeople() { const n = Number(peopleEl.value); return Number.isInteger(n) && n >= 1 && n <= 500 ? n : null; }
 function showQuote() {
   const n = validPeople(), h = hours();
-  const amtText = n ? money(quote(n, h)) : "$ ...";
+  // Paying ahead: the price tag shows the whole term chosen, not one morning.
+  const aheadChosen = n && document.querySelector('input[name="package"]:checked')?.value === "Prepaid contract";
+  const aheadTerm = aheadChosen ? contractTerms(n, h).find((t) => String(t.months) === document.getElementById("contract-term").value) : null;
+  const amtText = n ? money(aheadTerm ? aheadTerm.total : quote(n, h)) : "$ ...";
   // The brand font has no dollar sign, so the currency symbol is set in the body font.
   document.getElementById("amt").innerHTML = amtText.replace(/^\$/, '<span class="cur">$</span>');
   document.getElementById("perhead").textContent = n ? `That is ${money2(quote(n, h) / n)} a head, everything included.` : "";
+  if (aheadTerm) document.getElementById("perhead").textContent = `${aheadTerm.mornings} mornings at ${money(quote(n, h))} each, or ${money(aheadTerm.monthly)} a month. That is ${money2(quote(n, h) / n)} a head each morning.`;
   showAnchor(n, h);
-  document.getElementById("sub").textContent = n ? `${n} ${n === 1 ? "person" : "people"}, ${h} hours, including GST` : "Enter 1 to 500 people";
+  document.getElementById("sub").textContent = n ? (aheadTerm ? `${aheadTerm.months} months paid ahead: ${n} ${n === 1 ? "person" : "people"}, ${h} hours a morning, including GST` : `${n} ${n === 1 ? "person" : "people"}, ${h} hours, including GST`) : "Enter 1 to 500 people";
   if (!n) return;
   // The 4-Pack is four mornings at the length chosen, at list price.
   const pack = packPrice(n, h);
@@ -328,13 +352,25 @@ function showQuote() {
   document.getElementById("cmp-len-pack").textContent = h + " hours each";
   document.getElementById("packline").textContent =
     `For ${n} ${n === 1 ? "person" : "people"}: ${money(pack)} for four mornings of ${h} hours, paid once.`;
+  // Paying ahead: the same single-morning price for every morning in the term, with free service hours the app sizes (quote.js mirrors it).
+  document.getElementById("contract-rows").innerHTML = contractTerms(n, h)
+    .map((t) => `<tr><th>${t.months} months</th><td>${t.mornings}</td><td><strong>${money(t.total)}</strong><br><span class="fine">or ${money(t.monthly)} a month</span></td><td>${t.freeHours} ${t.freeHours === 1 ? "hour" : "hours"}</td></tr>`)
+    .join("");
+  document.getElementById("contractline").textContent =
+    `For ${n} ${n === 1 ? "person" : "people"}, ${h} hours a morning: each morning is ${money(quote(n, h))}, the same as a single morning.`;
 }
 document.addEventListener("input", showQuote); showQuote();
 // Choosing the 4-Pack opens its comparison; choosing a single morning folds it away.
 document.querySelectorAll('input[name="package"]').forEach((el) => el.addEventListener("change", () => {
-  const wrap = document.querySelector("details.packwrap");
-  if (wrap) wrap.open = document.querySelector('input[name="package"]:checked').value === "Office Club 4-Pack";
+  const chosen = document.querySelector('input[name="package"]:checked').value;
+  const pack = document.querySelector("details.packwrap:not(#contractwrap)");
+  if (pack) pack.open = chosen === "Office Club 4-Pack";
+  const contract = document.getElementById("contractwrap");
+  if (contract) contract.open = chosen === "Prepaid contract";
+  document.getElementById("contract-term-wrap").hidden = chosen !== "Prepaid contract";
+  showQuote();
 }));
+document.getElementById("contract-term").addEventListener("change", showQuote);
 const INTAKE_URL = window.WANDER_INTAKE_URL || "";
 const STORE_URL = window.WANDER_STORE_URL || "";
 const CALL_LINE = "Call us on 0492 801 058 and we will take it from there.";
@@ -436,7 +472,7 @@ function bookingPayload() {
     name: field("name").value.trim(), phone: field("phone").value.trim(), email: field("email").value.trim(),
     date: field("date").value, startTime: field("start").value, suburb: field("suburb").value, address: field("address").value.trim(),
     people: validPeople(), hours: hours(),
-    package: pkg ? pkg.value : "Single morning", offers: field("offers").checked, referral: referralCode || "",
+    package: pkg ? (pkg.value === "Prepaid contract" ? "Prepaid contract " + field("contract-term").value + " months" : pkg.value) : "Single morning", offers: field("offers").checked, referral: referralCode || "",
     source: source ? source.source : (referralCode ? "referral" : ""), medium: source ? source.medium : (referralCode ? "referral" : ""),
     campaign: source ? source.campaign : "", heard: field("heard").value,
   };
