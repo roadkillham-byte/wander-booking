@@ -20,22 +20,19 @@ var WanderRules = (function () {
 
   // Where the van can go and how far each place is from base, one way, in road kilometres. Beyond 50 km is never held
   // automatically; "other" (somewhere else) is never guessed.
-  // VERIFIED 15 Nov 2026 against OpenStreetMap road distances: Nominatim suburb-centre coordinates, routed with the public OSRM
-  // demo server from the centre of Tea Gardens (the base that best explains the draft: Hawks Nest, Jimmys Beach and Winda Woppa
-  // came within 1 km), rounded to whole km. A draft figure was replaced only where it was off by more than 3 km. Tea Gardens
-  // stays 7 (centre to centre it is 0; the draft figure presumably allows for where the van is actually based). Medowie
-  // verified at 46 (49 from Hawks Nest), just inside the 50 km line, but kept at the draft 55 so it still needs a call: the free-travel
-  // line is a promise to the client until the van's real start point is confirmed.
+  // VERIFIED 15 Nov 2026 from the van's real start point, 63a Myall Street, Tea Gardens (Sam, 15 Nov): road kilometres by the public
+  // OpenStreetMap OSRM server to each suburb's centre, rounded to whole km. Expect 1-3 km of difference from Google, and a client's
+  // door is not the suburb centre. Only Medowie crosses the 50 km free-travel line (46, was 55 in the draft).
   const SUBURBS = [
     { key: "hawks-nest", label: "Hawks Nest", km: 3 },
-    { key: "jimmys-beach", label: "Jimmys Beach", km: 3 },
-    { key: "winda-woppa", label: "Winda Woppa", km: 4 },
-    { key: "tea-gardens", label: "Tea Gardens", km: 7 },
+    { key: "jimmys-beach", label: "Jimmys Beach", km: 4 },
+    { key: "winda-woppa", label: "Winda Woppa", km: 5 },
+    { key: "tea-gardens", label: "Tea Gardens", km: 1 },
     { key: "pindimar", label: "Pindimar", km: 17 },
     { key: "karuah", label: "Karuah", km: 23 },
-    { key: "bulahdelah", label: "Bulahdelah", km: 40 },
+    { key: "bulahdelah", label: "Bulahdelah", km: 38 },
     { key: "booral", label: "Booral", km: 57 },
-    { key: "medowie", label: "Medowie", km: 55 }, // verified 46 from Tea Gardens centre, held at 55 until the van's real start point is confirmed (the 50 km free-travel line is a promise to the client)
+    { key: "medowie", label: "Medowie", km: 46 },
     { key: "nelson-bay", label: "Nelson Bay", km: 80 },
     { key: "salamander-bay", label: "Salamander Bay", km: 77 },
     { key: "forster", label: "Forster", km: 107 },
