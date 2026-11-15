@@ -43,7 +43,8 @@ await check("Book holds the date and goes to the 4-Pack offer", async () => {
   const txt = await page.innerText("#app");
   if (!txt.includes("Four mornings, one at a time, or all four up front")) throw new Error("offer heading missing");
   if (!txt.includes("$2,476")) throw new Error("4-Pack price missing: " + txt.slice(0, 300));
-  if (!txt.includes("free, worth")) throw new Error("bonus value missing");
+  if (/bonus|free, worth|coffee time/i.test(txt)) throw new Error("the 4-Pack offer still mentions bonus time: " + txt);
+  if (!txt.includes("The 4-Pack costs the same")) throw new Error("same-price line missing");
   if (!txt.includes("If we don't turn up")) throw new Error("guarantee beside the price missing");
   await noOverflowAndNoJunk("Upgrade");
 });
@@ -463,6 +464,45 @@ await check("My 4-Pack page states the photography and advertising terms in the 
   const t = await page.innerText(".pack-terms");
   if (t !== "Terms: the 4-Pack does not include photography, and we do not use photos of your people or premises in our advertising unless you agree to it first.") throw new Error("wrong terms: " + t);
   await noOverflowAndNoJunk("My 4-Pack");
+});
+
+// What the page serves for My 4-Pack: no pack, a pack from a new snapshot, and a pack from an OLD snapshot that still carries bonusHours.
+async function packPageText(pack) {
+  await page.route("**/api?action=session", async (route) => {
+    const res = await route.fetch();
+    const body = await res.json();
+    body.pack = pack;
+    await route.fulfill({ response: res, contentType: "application/json", body: JSON.stringify(body) });
+  });
+  await page.goto("about:blank"); // a fresh load, so the page asks the store again instead of reusing its session
+  await page.goto(url + "/#k=" + MOCK_TWO_TOKEN + "&v=pack");
+  await page.waitForSelector(".pack-terms");
+  const t = await page.innerText("#app");
+  await page.unroute("**/api?action=session");
+  return t;
+}
+await check("My 4-Pack with no pack offers four mornings at the price of four singles, with no bonus", async () => {
+  const t = await packPageText(null);
+  if (/bonus/i.test(t)) throw new Error("bonus mentioned: " + t);
+  if (!t.includes("You do not have a 4-Pack yet. Four mornings, paid up front, for the price of four singles.")) throw new Error("wrong no-pack copy: " + t);
+});
+await check("My 4-Pack with a pack shows mornings left and the expiry, no bonus time", async () => {
+  const t = await packPageText({ mornings: 4, used: 1, left: 3, expiresAt: "2027-11-20" });
+  if (/bonus/i.test(t)) throw new Error("bonus mentioned: " + t);
+  if (!/3 mornings left of 4\. Valid until /.test(t)) throw new Error("wrong pack line: " + JSON.stringify(t));
+  await noOverflowAndNoJunk("My 4-Pack with a pack");
+});
+await check("My 4-Pack from an old snapshot that still carries bonusHours renders without bonus or error", async () => {
+  const t = await packPageText({ mornings: 4, used: 1, left: 3, bonusHours: 2, expiresAt: "2027-11-20" });
+  if (/bonus|2 hours/i.test(t)) throw new Error("old bonusHours leaked onto the page: " + t);
+  if (!/3 mornings left of 4\. Valid until /.test(t)) throw new Error("wrong pack line: " + JSON.stringify(t));
+});
+await check("the plan comparison describes the 4-Pack without bonus time", async () => {
+  await page.goto(url + "/#k=" + MOCK_CLIENT_TOKEN + "&v=compare");
+  await page.waitForSelector("#app h2");
+  const t = await page.innerText("#app");
+  if (/bonus/i.test(t)) throw new Error("bonus mentioned: " + t);
+  if (!t.includes("Four mornings, paid up front, for the price of four singles.")) throw new Error("wrong compare copy");
 });
 
 await check("no page errors", async () => {

@@ -336,6 +336,18 @@ var StoreLogic = (function () {
     var raw = readPrices(db);
     if (!raw) return { ok: false, error: "not-published" };
     var out = JSON.parse(raw);
+    // The 4-Pack has no bonus time (Sam, 16 Nov 2026). Snapshots published before then still carry bonusHours and
+    // bonusValue; keep only the price so no client page ever shows them.
+    if (out.packs && typeof out.packs === "object") {
+      Object.keys(out.packs).forEach(function (people) {
+        var row = out.packs[people];
+        if (!row || typeof row !== "object") return;
+        Object.keys(row).forEach(function (hours) {
+          var p = row[hours];
+          if (p && typeof p === "object") row[hours] = { price: p.price };
+        });
+      });
+    }
     out.ok = true;
     out.asOf = metaValue(db, "asOf");
     return out;

@@ -202,6 +202,31 @@ test("prices are refused until Coffee Van has published them, then served with t
   assert.equal(p.asOf, FRESH);
 });
 
+// Sam, 16 Nov 2026: the 4-Pack has no bonus hours. Snapshots published before then still carry them; the store never serves them on.
+test("a price table published with 4-Pack bonus fields (an old snapshot) is served without them, prices unchanged", () => {
+  const db = makeDb();
+  publish(db, { prices: { quotes: { 20: { 2: 458, 3: 619 } }, fees: {},
+    packs: { 20: { 2: { price: 1832, bonusHours: 1.5, bonusValue: 241 }, 3: { price: 2476, bonusHours: 2, bonusValue: 322 } } } } });
+  const p = S.prices(db);
+  assert.equal(p.ok, true);
+  assert.deepEqual(p.packs, { 20: { 2: { price: 1832 }, 3: { price: 2476 } } });
+  assert.deepEqual(p.quotes, { 20: { 2: 458, 3: 619 } });
+});
+
+test("a price table published without bonus fields serves the same pack prices", () => {
+  const db = makeDb();
+  publish(db, { prices: { quotes: { 20: { 3: 619 } }, fees: {}, packs: { 20: { 3: { price: 2476 } } } } });
+  assert.deepEqual(S.prices(db).packs, { 20: { 3: { price: 2476 } } });
+});
+
+test("a session never carries 4-Pack bonus hours, whatever the snapshot held", () => {
+  const db = makeDb();
+  publish(db, { prices: { quotes: { 20: { 3: 619 } }, fees: {}, packs: { 20: { 3: { price: 2476, bonusHours: 2, bonusValue: 322 } } } } });
+  const s = S.session(db, ALEX, NOW);
+  assert.equal(s.ok, true);
+  assert.equal(s.pack === null || s.pack.bonusHours === undefined, true);
+});
+
 test("health reports the contract version, the as-of time and the stale threshold", () => {
   const db = makeDb();
   publish(db);
@@ -589,13 +614,14 @@ test("a price table bigger than one spreadsheet cell is stored in pieces, and co
     prices.quotes[p] = {}; prices.packs[p] = {};
     for (const h of [2, 3, 4, 5, 6]) {
       prices.quotes[p][h] = p * 10 + h;
-      prices.packs[p][h] = { price: 4 * (p * 10 + h), bonusHours: 1.5, bonusValue: 241 };
+      prices.packs[p][h] = { price: 4 * (p * 10 + h) };
     }
   }
   for (let m = 0; m < 24 * 60; m += 30) {
     const key = String(Math.floor(m / 60)).padStart(2, "0") + ":" + String(m % 60).padStart(2, "0");
     prices.fees[key] = { 2: 35, 3: 35, 4: 35, 5: 35, 6: 35 };
   }
+  prices.pad = "x".repeat(20000); // the 4-Pack bonus fields no longer fatten the table, so pad it past one cell
   assert.ok(JSON.stringify(prices).length > 50000, "the table is over one cell's limit");
   assert.equal(S.publish(db, APP, { asOf: FRESH, clients: [], bookings: [], busy: [], credits: [], prices }, NOW).ok, true);
   const pieces = db.tables.meta.filter((r) => r.key.startsWith("prices"));

@@ -42,7 +42,7 @@ adapter in `store/Adapter.gs`) and Coffee Van's sync (`server/dashboardSync.mjs`
 - `club`: `null` for a client who is not an Office Club member, else `{month: "YYYY-MM", used, perMonth}`: how many of their mornings this month are booked (any that is not cancelled), out of `perMonth` (4). Coffee Van counts them; the page shows a stamp card.
 - `reward`: `{referrerPercent, friendPercent, captainEvery, captainFreeHours}`, the referral offer in numbers, published by Coffee Van
   so the page's words never drift from what Coffee Van gives (10, 10, 3, 2 today). `null` until the first publish.
-- `pack`: `null`, or `{mornings: 4, used, left, bonusHours, expiresAt}`.
+- `pack`: `null`, or `{mornings: 4, used, left, expiresAt}`. The 4-Pack has no bonus time (Sam, 16 Nov 2026); a `bonusHours` an older snapshot may carry is ignored by the page.
 - `asOf`, `stale`.
 
 ## Availability (client, token)
@@ -65,7 +65,7 @@ when the client taps it. `bookingId` leaves that client's own booking out of the
 `GET ?action=prices` → see `fixtures/contract/prices.json`. Published by Coffee Van, cached by the page.
 
 - `quotes`: `{"<people>": {"<hours>": total}}`, people 1 to 200, hours 2 to 6.
-- `packs`: `{"<people>": {"<hours>": {price, bonusHours, bonusValue}}}`, the 4-Pack ladder from `packBonus`.
+- `packs`: `{"<people>": {"<hours>": {price}}}`, four single quotes. Snapshots published before 16 Nov 2026 also carry `bonusHours` and `bonusValue`; the store drops them when it serves prices.
 - `fees`: `{"<HH:MM>": {"<hours>": outOfHoursFee}}`, the $35-per-started-hour rule outside 7:00 am to 4:00 pm.
 - `asOf`.
 
