@@ -457,6 +457,14 @@ await check("tapping Add says Adding... at once while a slow store answers, and 
   await page.waitForFunction(() => /^Add$/.test(document.querySelector(".extras button")?.textContent || ""), null, { timeout: 8000 });
 });
 
+await check("My 4-Pack page states the photography and advertising terms in the same words as the emails", async () => {
+  await page.goto(url + "/#k=" + MOCK_TWO_TOKEN + "&v=pack");
+  await page.waitForSelector(".pack-terms");
+  const t = await page.innerText(".pack-terms");
+  if (t !== "Terms: the 4-Pack does not include photography, and we do not use photos of your people or premises in our advertising unless you agree to it first.") throw new Error("wrong terms: " + t);
+  await noOverflowAndNoJunk("My 4-Pack");
+});
+
 await check("no page errors", async () => {
   if (errors.length) throw new Error(errors.join(" | "));
 });
