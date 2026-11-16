@@ -1123,3 +1123,37 @@ test("a date in the first-pick days is held for a pack holder's 2-hour morning a
   assert.equal(ask(SAM, "fp-3", "2027-02-01", 2).outcome, "requested");
   assert.equal(ask(SAM, "fp-4", "2027-01-29", 2).outcome, "held"); // inside the public 60 days: unchanged
 });
+
+// ---- a pack holder keeps a standing morning or pauses (4-Pack v2) ----
+
+test("keeping a held standing morning is queued once for Coffee Van; a released, unknown or someone else's month is refused", () => {
+  const db = makeDb();
+  withPack(db, packFor());
+  const r = S.request(db, { k: ALEX, kind: "standing", requestId: "st-1", op: "confirm", month: "2026-12" }, NOW);
+  assert.equal(r.ok, true);
+  assert.equal(r.outcome, "requested");
+  assert.match(r.message, /^We appreciate you!/);
+  assert.deepEqual(S.request(db, { k: ALEX, kind: "standing", requestId: "st-1", op: "confirm", month: "2026-12" }, NOW), r);
+  const q = db.tables.queue.filter((x) => x.kind === "standing");
+  assert.equal(q.length, 1);
+  assert.deepEqual(JSON.parse(q[0].payload).request, { op: "confirm", month: "2026-12", decision: "requested" });
+  assert.equal(S.request(db, { k: ALEX, kind: "standing", requestId: "st-2", op: "confirm", month: "2027-01" }, NOW).error, "not-offered"); // released
+  assert.equal(S.request(db, { k: ALEX, kind: "standing", requestId: "st-3", op: "confirm", month: "2030-01" }, NOW).error, "not-offered");
+  assert.equal(S.request(db, { k: SAM, kind: "standing", requestId: "st-4", op: "confirm", month: "2026-12" }, NOW).error, "not-found"); // no pack
+});
+
+test("a pause the rules allow is queued; more than 42 days in all, or under a week's notice, is declined and not queued", () => {
+  const db = makeDb();
+  withPack(db, packFor({ pausedDays: 28 }));
+  const ok = S.request(db, { k: ALEX, kind: "pause", requestId: "pa-1", from: "2026-12-20", days: 14 }, NOW);
+  assert.equal(ok.outcome, "requested");
+  assert.match(ok.message, /pause is noted/);
+  assert.deepEqual(JSON.parse(db.tables.queue.filter((x) => x.kind === "pause")[0].payload).request, { from: "2026-12-20", days: 14, decision: "requested" });
+  const tooLong = S.request(db, { k: ALEX, kind: "pause", requestId: "pa-2", from: "2026-12-20", days: 21 }, NOW);
+  assert.equal(tooLong.ok, true);
+  assert.equal(tooLong.outcome, "declined");
+  assert.match(tooLong.message, /ring/);
+  const short = S.request(db, { k: ALEX, kind: "pause", requestId: "pa-3", from: "2026-12-04", days: 7 }, NOW);
+  assert.equal(short.outcome, "declined");
+  assert.equal(db.tables.queue.filter((x) => x.kind === "pause").length, 1);
+});

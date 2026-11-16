@@ -433,7 +433,8 @@
       if (pack.standingMonths && pack.standingMonths.length) {
         out += '<ul class="standing">' + pack.standingMonths.map(function (m) {
           var words = m.state === "proposed" ? "held for you. Tell us by " + dayName(WanderRules.addDays(m.date, -7)) + " to keep it" : (STANDING_STATE[m.state] || m.state);
-          return "<li>" + esc(dayName(m.date)) + ": " + esc(words) + "</li>";
+          return "<li>" + esc(dayName(m.date)) + ": " + esc(words) +
+            (m.state === "proposed" ? ' <button type="button" class="go ghost" data-standing="' + esc(m.month) + '">Keep this morning</button>' : "") + "</li>";
         }).join("") + "</ul>";
       }
     }
@@ -442,8 +443,23 @@
       out += '<p><a class="go" href="#k=' + encodeURIComponent(state.k) + '&v=pick&setup=1">Book the next one, same set-up</a></p>' +
         '<p class="note">' + esc(pack.setup.people) + " people, " + esc(pack.setup.hours) + " hours at " + esc(clock(pack.setup.startTime)) + (pack.setup.address ? ", " + esc(pack.setup.address) : "") + ".</p>";
     }
-    out += '<p class="note">Booking at the last minute? A 4-Pack morning can be booked with half a day\'s notice (two a week, when we have the room). To pause (up to 6 weeks) or change your standing morning, ring us.</p>';
+    out += packPauseHtml(pack);
+    out += '<p class="note">Booking at the last minute? A 4-Pack morning can be booked with half a day\'s notice (two a week, when we have the room). To change your standing morning, ring us.</p>';
     return out;
+  }
+
+  // Pausing: whole weeks, up to 6 in all, with a week's notice. The store checks it with the same rules and Coffee Van applies it.
+  function packPauseHtml(pack) {
+    var left = Math.max(0, 42 - (Number(pack.pausedDays) || 0));
+    if (left < 7) return "";
+    var options = [7, 14, 21, 28, 35, 42].filter(function (d) { return d <= left; }).map(function (d) {
+      return '<option value="' + d + '">' + d / 7 + (d === 7 ? " week" : " weeks") + "</option>";
+    }).join("");
+    var earliest = WanderRules.addDays(WanderRules.sydneyDate(new Date().toISOString()), 7);
+    return '<div class="pause"><h3>Need a break?</h3><p>Pause your 4-Pack for up to 6 weeks in all. Tell us a week ahead and your valid-until date moves with it.</p>' +
+      '<label for="pause-from">Starting</label><input type="date" id="pause-from" min="' + esc(earliest) + '" value="' + esc(earliest) + '">' +
+      '<label for="pause-days">For</label><select id="pause-days">' + options + "</select>" +
+      '<p><button type="button" class="go ghost" id="pause-go">Pause my 4-Pack</button></p></div>';
   }
 
   function renderPack() {
@@ -479,8 +495,9 @@
       '<p class="note">Nothing is charged here. Ask and we\'ll ring you to set it up.</p></section>';
   }
 
-  function renderEnquirySent(resp) {
-    var inner = '<section class="rise d1"><h2 class="rule">We appreciate you asking!</h2><p>' + esc((resp && resp.message) || "We\'ll ring you within 24 hours. Nothing is charged.") + "</p></section>";
+  function renderEnquirySent(resp, title) {
+    var inner = '<section class="rise d1"><h2 class="rule">' + esc(title || "We appreciate you asking!") + "</h2>" +
+      "<p>" + esc((resp && resp.message) || "We\'ll ring you within 24 hours. Nothing is charged.") + "</p></section>";
     return shell(inner, { nav: true, greet: "We appreciate you, " + firstName() + "!" });
   }
 
@@ -637,6 +654,8 @@
       var b = list.filter(function (x) { return x.id === body.bookingId; })[0];
       return "I would like to cancel my morning" + (b ? " on " + dayName(b.date) + " at " + clock(b.startTime) : "") + ".";
     }
+    if (body.kind === "standing") return "Please keep my standing morning for " + String(body.month) + ".";
+    if (body.kind === "pause") return "Please pause my 4-Pack for " + body.days + " days from " + dayName(body.from) + ".";
     if (body.kind === "enquiry") return "Please ring me about " + (body.enquiry === "photographer" ? "a photographer" : "paying ahead for " + String(body.enquiry).replace("contract-", "") + " months") + ".";
     if (body.kind === "call") return "Please ring me" + (body.when ? ": " + body.when : "") + ".";
     var what = { hold: "book", change: "change my booking to", pack: "ask about a 4-Pack starting" }[body.kind] || "book";
@@ -721,6 +740,20 @@
         track("cta", { v: "enquiry-" + btn.getAttribute("data-enquiry") });
         send({ k: state.k, kind: "enquiry", requestId: uid(), enquiry: btn.getAttribute("data-enquiry") }, function (resp) { state.notice = null; showPage(renderEnquirySent(resp)); }); // the page itself says it: no second notice
       });
+    });
+    Array.prototype.forEach.call(app.querySelectorAll("button[data-standing]"), function (btn) {
+      btn.addEventListener("click", function () {
+        if (state.busy) return;
+        track("cta", { v: "standing-keep" });
+        send({ k: state.k, kind: "standing", requestId: uid(), op: "confirm", month: btn.getAttribute("data-standing") }, function (resp) { state.notice = null; showPage(renderEnquirySent(resp, "We appreciate you!")); });
+      });
+    });
+    var pauseGo = document.getElementById("pause-go");
+    if (pauseGo) pauseGo.addEventListener("click", function () {
+      if (state.busy) return;
+      track("cta", { v: "pause" });
+      send({ k: state.k, kind: "pause", requestId: uid(), from: document.getElementById("pause-from").value, days: Number(document.getElementById("pause-days").value) },
+        function (resp) { state.notice = null; showPage(renderEnquirySent(resp, resp && resp.outcome === "declined" ? "We cannot do that one online" : "We appreciate you!")); });
     });
     var no = document.getElementById("pack-no");
     if (no) no.addEventListener("click", function () {

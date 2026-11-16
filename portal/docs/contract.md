@@ -82,6 +82,8 @@ when the client taps it. `bookingId` leaves that client's own booking out of the
 | `cancel` | `bookingId` | `requested` (credit confirmed by Sam until amount credits exist) |
 | `pack` | `date, startTime, people, hours` | `requested` (Sam confirms the first date; no charge) |
 | `call` | `when, note` | `requested` |
+| `standing` | `op: "confirm", month` ("YYYY-MM") | `requested` (queued for Coffee Van to confirm the held morning). `not-offered` unless that month is a published `proposed` standing morning of the client's valid pack; `not-found` without a valid pack. |
+| `pause` | `from` (yyyy-mm-dd), `days` | `requested` when `packrules.js` `pauseAllowed` passes (up to 42 days in all, 7 days' notice); otherwise `declined` with the reason in `message`, and nothing is queued. Coffee Van applies it and moves `validUntil`. |
 | `enquiry` | `enquiry, note` | `requested` (Sam rings; nothing is charged). `enquiry` is one of `contract-3`, `contract-6`, `contract-12`, `photographer` (`bad-enquiry` otherwise). One generic kind: a new thing to ask about is one more name in the store's `ENQUIRIES` list. |
 
 `hold` and `change` may also send `shownTotal` and `shownFee`: the total and out-of-hours fee the page showed. Coffee Van compares them with its own price and flags any difference; it books at its own price.

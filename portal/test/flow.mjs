@@ -556,6 +556,39 @@ await check("My 4-Pack shows the standing morning in true words, the 12-hour not
   if (!/20/.test(await page.inputValue("#people").catch(() => "20"))) throw new Error("people not seeded: " + body.slice(0, 200));
 });
 
+await check("a pack holder keeps a held standing morning in one tap, and it is queued once for the app", async () => {
+  await page.goto(url + "/#k=" + MOCK_PACK_TOKEN + "&v=pack");
+  await page.waitForSelector("button[data-standing]");
+  await page.click('button[data-standing="2026-12"]');
+  await page.waitForFunction(() => document.getElementById("app").innerText.includes("standing morning is kept"));
+  const queued = db.tables.queue.filter((x) => x.kind === "standing");
+  if (queued.length !== 1 || JSON.parse(queued[0].payload).request.month !== "2026-12") throw new Error("not queued once");
+  await noOverflowAndNoJunk("standing kept");
+});
+await check("the pause form pauses within the rules, and says plainly when it cannot", async () => {
+  await page.goto(url + "/#k=" + MOCK_PACK_TOKEN + "&v=bookings"); // a different hash, so the page really moves
+  await page.goto(url + "/#k=" + MOCK_PACK_TOKEN + "&v=pack");
+  await page.waitForSelector("#pause-go");
+  const t = await page.innerText("#app");
+  if (!/Need a break\?/.test(t) || !/up to 6 weeks in all/.test(t)) throw new Error("pause copy missing: " + t.slice(0, 300));
+  await page.waitForTimeout(1500);
+  await page.screenshot({ path: shots + "/dash-pack-pause.png", fullPage: true });
+  await page.selectOption("#pause-days", "14");
+  await page.click("#pause-go");
+  await page.waitForFunction(() => document.getElementById("app").innerText.includes("pause is noted"));
+  const queued = db.tables.queue.filter((x) => x.kind === "pause");
+  if (queued.length !== 1 || JSON.parse(queued[0].payload).request.days !== 14) throw new Error("pause not queued: " + queued.length);
+  await page.goto(url + "/#k=" + MOCK_PACK_TOKEN + "&v=bookings");
+  await page.goto(url + "/#k=" + MOCK_PACK_TOKEN + "&v=pack");
+  await page.waitForSelector("#pause-go");
+  const earliest = await page.inputValue("#pause-from"); // today plus 7 days
+  const tooSoon = new Date(Date.parse(earliest + "T00:00:00Z") - 5 * 86400000).toISOString().slice(0, 10); // 2 days from now: under a week's notice
+  await page.fill("#pause-from", tooSoon);
+  await page.click("#pause-go");
+  await page.waitForFunction(() => document.getElementById("app").innerText.includes("We cannot do that one online"));
+  if (db.tables.queue.filter((x) => x.kind === "pause").length !== 1) throw new Error("a refused pause was queued");
+});
+
 await check("no page errors", async () => {
   if (errors.length) throw new Error(errors.join(" | "));
 });

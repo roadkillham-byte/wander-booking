@@ -10,6 +10,7 @@ import { fileURLToPath } from "node:url";
 const require = createRequire(import.meta.url);
 const here = fileURLToPath(new URL(".", import.meta.url));
 globalThis.WanderRules = require("./rules.js");
+globalThis.WanderPackRules = require("./packrules.js");
 const S = require("./store/logic.js");
 
 export const MOCK_APP_TOKEN = "dev-app-token-0123456789abcdef";
