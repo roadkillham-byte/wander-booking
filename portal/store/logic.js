@@ -554,6 +554,12 @@ var StoreLogic = (function () {
         var holdNotice = packNoticeFor(db, client, fields.date, fields.startTime, now);
         var held = WanderRules.decideHold({ date: fields.date, startTime: fields.startTime, hours: fields.hours, travelKm: fields.travelKm }, others, asOf, now, holdNotice.opts);
         fields.shortNotice = holdNotice.shortNotice && held.decision === "held";
+        if (held.decision === "held" && typeof WanderPackRules !== "undefined") {
+          var ahead = WanderPackRules.daysBetween(WanderRules.sydneyDate(now), fields.date);
+          if (ahead >= AVAILABILITY_DAYS && ahead < AVAILABILITY_DAYS + WanderPackRules.FIRST_PICK_DAYS && !(activePackOf(client, now) && firstPickDayOpen(WanderRules.sydneyDate(now), fields.date, fields.hours, now))) {
+            held = { decision: "requested", reasons: (held.reasons || []).concat(["first pick for 4-Pack holders"]) };
+          }
+        }
         var reply = WanderRules.replyWithinHours(now, fields.date, fields.startTime);
         var outcome = held.decision;
         response = { ok: true, outcome: outcome, replyWithinHours: reply, message: copyFor(outcome === "held" ? "held" : "requested", reply) };
@@ -750,7 +756,7 @@ var StoreLogic = (function () {
     if (body.bookingId) {
       own = db.read("bookings").filter(function (b) { return b.id === clean(body.bookingId, 80) && b.clientToken === client.token; })[0] || null;
     }
-    return availabilityCore(db, hours, own, now);
+    return availabilityCore(db, hours, own, now, Boolean(activePackOf(client, now)));
   }
 
   // The same list for someone with no key yet (the booking page): nothing of anyone's is left out.
@@ -760,12 +766,22 @@ var StoreLogic = (function () {
     return availabilityCore(db, hours, null, now);
   }
 
-  function availabilityCore(db, hours, own, now) {
+  // First pick (4-Pack v2, Sam 16 Nov 2026): the public sees the next AVAILABILITY_DAYS days; a pack holder sees FIRST_PICK_DAYS more, but
+  // only the 2-hour mornings (packrules.js decides when each of those days opens). `firstPick` is true for a valid pack holder.
+  function firstPickDayOpen(today, date, hours, now) {
+    if (typeof WanderPackRules === "undefined" || Number(hours) !== 2) return false;
+    var ahead = WanderPackRules.daysBetween(today, date);
+    if (ahead < AVAILABILITY_DAYS || ahead >= AVAILABILITY_DAYS + WanderPackRules.FIRST_PICK_DAYS) return false;
+    return WanderPackRules.isFirstPickOpen(WanderRules.addDays(date, -(AVAILABILITY_DAYS - 1)), now);
+  }
+
+  function availabilityCore(db, hours, own, now, firstPick) {
     var asOf = metaValue(db, "asOf");
     var today = WanderRules.sydneyDate(now);
+    var reach = AVAILABILITY_DAYS + (firstPick && typeof WanderPackRules !== "undefined" && Number(hours) === 2 ? WanderPackRules.FIRST_PICK_DAYS : 0);
     var out = {
       ok: true, asOf: asOf, stale: WanderRules.isStale(asOf, now), hours: hours,
-      window: { from: today, through: WanderRules.addDays(today, AVAILABILITY_DAYS - 1) }, days: {},
+      window: { from: today, through: WanderRules.addDays(today, reach - 1) }, days: {},
     };
     if (out.stale || !today) return out;
     var byDate = {};
@@ -776,8 +792,9 @@ var StoreLogic = (function () {
     });
     db.read("holds").forEach(function (h) { add(h.date, { date: h.date, startTime: h.startTime, endTime: h.endTime }); });
     var times = startTimes();
-    for (var i = 0; i < AVAILABILITY_DAYS; i++) {
+    for (var i = 0; i < reach; i++) {
       var date = WanderRules.addDays(today, i);
+      if (i >= AVAILABILITY_DAYS && !(firstPick && firstPickDayOpen(today, date, hours, now))) continue;
       var others = byDate[date] || [];
       var free = times.filter(function (t) {
         return WanderRules.decideHold({ date: date, startTime: t, hours: hours, travelKm: 0 }, others, asOf, now).decision === "held";

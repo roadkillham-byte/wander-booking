@@ -1096,3 +1096,30 @@ test("an expired pack, a pack with nothing left, or 11 hours' notice is still a 
     assert.equal(S.request(db, nearHold(ALEX, "x-" + label, "2026-12-02", start), NOW_NIGHT).outcome, "requested", label);
   }
 });
+
+// ---- first pick: the public sees 60 days; a pack holder sees 3 more, 2-hour mornings only ----
+
+test("a pack holder sees three more days of 2-hour mornings; the public and other lengths stop at 60", () => {
+  const db = makeDb();
+  publish(db, { clients: [{ token: ALEX, firstName: "Alex", referralCode: "K7M2-QXTP", pack: packFor() }, { token: SAM, firstName: "Sam", referralCode: "H4BC-7WDR" }], busy: [], bookings: [], credits: [] });
+  const last = (r) => Object.keys(r.days).sort().pop();
+  const mine2 = S.availability(db, { k: ALEX, hours: 2 }, NOW);
+  const mine3 = S.availability(db, { k: ALEX, hours: 3 }, NOW);
+  const single2 = S.availability(db, { k: SAM, hours: 2 }, NOW);
+  assert.equal(mine2.window.through, "2027-02-01");
+  assert.equal(last(mine2), "2027-02-01");
+  assert.equal(mine3.window.through, "2027-01-29");
+  assert.equal(single2.window.through, "2027-01-29");
+  assert.equal(last(single2), "2027-01-29");
+  assert.equal(S.openTimes(db, { hours: 2 }, NOW).window.through, "2027-01-29");
+});
+
+test("a date in the first-pick days is held for a pack holder's 2-hour morning and only requested for anyone else", () => {
+  const db = makeDb();
+  publish(db, { clients: [{ token: ALEX, firstName: "Alex", referralCode: "K7M2-QXTP", pack: packFor() }, { token: SAM, firstName: "Sam", referralCode: "H4BC-7WDR" }], busy: [], bookings: [], credits: [] });
+  const ask = (token, id, date, hours) => S.request(db, { k: token, kind: "hold", requestId: id, date, startTime: "09:00", people: 20, hours, address: "3 Lake Road, Tea Gardens", suburb: "tea-gardens", shownTotal: 458, shownFee: 0 }, NOW);
+  assert.equal(ask(ALEX, "fp-1", "2027-02-01", 2).outcome, "held");
+  assert.equal(ask(ALEX, "fp-2", "2027-02-01", 3).outcome, "requested");
+  assert.equal(ask(SAM, "fp-3", "2027-02-01", 2).outcome, "requested");
+  assert.equal(ask(SAM, "fp-4", "2027-01-29", 2).outcome, "held"); // inside the public 60 days: unchanged
+});
