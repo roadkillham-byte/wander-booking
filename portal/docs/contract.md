@@ -42,7 +42,9 @@ adapter in `store/Adapter.gs`) and Coffee Van's sync (`server/dashboardSync.mjs`
 - `club`: `null` for a client who is not an Office Club member, else `{month: "YYYY-MM", used, perMonth}`: how many of their mornings this month are booked (any that is not cancelled), out of `perMonth` (4). Coffee Van counts them; the page shows a stamp card.
 - `reward`: `{referrerPercent, friendPercent, captainEvery, captainFreeHours}`, the referral offer in numbers, published by Coffee Van
   so the page's words never drift from what Coffee Van gives (10, 10, 3, 2 today). `null` until the first publish.
-- `pack`: `null`, or `{mornings: 4, used, left, expiresAt}`. The 4-Pack has no bonus time (Sam, 16 Nov 2026); a `bonusHours` an older snapshot may carry is ignored by the page.
+- `contract`: `null`, or a prepaid Office Club contract (Sam, 16 Nov 2026): `{termMonths: 3|6|12, status: "active"|"cancelled"|"complete", mornings, used, left, startDate, endDate, freeHours, freeHoursUsed, freeHoursUnlocked, pausedWeeks, nextInstalment: {dueDate, amount} | null}`. Published by Coffee Van per client (the clients table's `contract` column, JSON); the store keeps counts and dates only and drops anything malformed (an unknown term, `used` above `mornings`, a bad date). The page shows "My contract" and the nav link only when it is present. No payment method, account or amount paid is ever published.
+- `pack` (4-Pack v2, Sam 16 Nov 2026; the app's docs/4-pack-v2.md lists the source fields): `null`, or `{mornings: 4, delivered, booked, left, toBook, used, validUntil, expiresAt, pausedDays (0 to 42), standing: {weekday 0-6, startTime, hours, address} | null, standingMonths: [{month, date, state: "proposed"|"confirmed"|"released"}], setup: {address, people, hours, startTime, askFor, access, orderNotes} | null, invoiceNo}`. `left` is mornings not yet delivered; `expiresAt` is `validUntil` (already moved by any pause). Malformed packs are dropped by the store. The page says a `proposed` morning is "held for you" and asks the client to tell us by 7 days before; it never promises a one-tap confirm that is not built. Old line, kept for older snapshots: `{mornings: 4, used, left, expiresAt}`.
+- (older, 4-Pack v1) `pack`: `null`, or `{mornings: 4, used, left, expiresAt}`. The 4-Pack has no bonus time (Sam, 16 Nov 2026); a `bonusHours` an older snapshot may carry is ignored by the page.
 - `asOf`, `stale`.
 
 ## Availability (client, token)
@@ -80,15 +82,20 @@ when the client taps it. `bookingId` leaves that client's own booking out of the
 | `cancel` | `bookingId` | `requested` (credit confirmed by Sam until amount credits exist) |
 | `pack` | `date, startTime, people, hours` | `requested` (Sam confirms the first date; no charge) |
 | `call` | `when, note` | `requested` |
+| `enquiry` | `enquiry, note` | `requested` (Sam rings; nothing is charged). `enquiry` is one of `contract-3`, `contract-6`, `contract-12`, `photographer` (`bad-enquiry` otherwise). One generic kind: a new thing to ask about is one more name in the store's `ENQUIRIES` list. |
 
 `hold` and `change` may also send `shownTotal` and `shownFee`: the total and out-of-hours fee the page showed. Coffee Van compares them with its own price and flags any difference; it books at its own price.
 
 Response: `{ok:true, outcome, replyWithinHours, message, bookingId?}`. `message` is ready-to-show client copy.
 Examples: `fixtures/contract/request-hold.json` and its two responses.
 
+**4-Pack notice (4-Pack v2).** A client whose published `pack` is valid and has mornings left (`left` at least 1, `validUntil` not past) may hold or change a morning with 12 hours' notice instead of 24, for at most 2 such mornings in a Monday-to-Sunday week across all packs (`packrules.js` `noticeAllowed`, vendored from the app's `server/packRules.mjs`; `packrules.test.js` pins it, and compares with the app's file when `PACKRULES_SOURCE` points at it). Such a request carries `shortNotice: true` in the queued request so the app can count the week. Singles keep 24 hours. Without `packrules.js` in the Apps Script project, 24 hours apply to everyone. **First pick.** The public sees the next 60 days (today to today plus 59). A client with a valid pack also sees the next 3 days, but only 2-hour mornings, and may hold them; anyone else asking for a date in those 3 days gets a `requested` outcome (`first pick for 4-Pack holders`). `packrules.js` `isFirstPickOpen` decides when each of those days opens (Sydney midnight 3 calendar days before the public could see it). Dates 63 or more days away behave as before. Not built yet: standing-morning confirm and pause as client requests.
+
 Rules applied by the store (shared logic, `rules.js`): notice of 24 hours or more, the whole booking inside the trading hours
 (every day, 07:00 to 16:00), slot free on the van with a 60-minute gap, address within 50 km (the page sends the `suburb` the client picked; the store works the distance out from it, or from the suburb named in `address`, and never trusts a distance sent by the page; an unknown place or "other" is `requested`). Any miss is `requested`, never an error. A hold is checked against published busy times **and** holds
 still waiting in the store, under a lock, so two clients cannot hold the same slot.
+
+A first-time client who chooses "Pay ahead" on the booking page sends the ordinary `newhold` with `package: "Prepaid contract 3 months"` (or 6, 12). The store never holds the van's slot for it: the outcome is `requested`, Sam confirms by phone.
 
 ## Extras (client, token)
 

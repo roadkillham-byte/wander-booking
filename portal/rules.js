@@ -162,10 +162,13 @@ var WanderRules = (function () {
   // Hold: applied at once ("held") only when the slot is free, the availability is fresh and the notice is at least
   // 24 hours. Anything else is a request. Never an error.
   // `others` are the van's busy times plus holds still waiting, so two clients cannot take one slot.
-  function decideHold(request, others, asOfIso, nowIso) {
+  // `opts.minNoticeHours` is 12 for a 4-Pack holder whose short-notice allowance the store has checked (packrules.js noticeAllowed); everyone
+  // else gets the 24 hours. The store decides it; this file only applies it.
+  function decideHold(request, others, asOfIso, nowIso, opts) {
     const reasons = [];
+    const minNotice = opts && Number(opts.minNoticeHours) > 0 ? Math.min(NOTICE_HOURS, Number(opts.minNoticeHours)) : NOTICE_HOURS;
     if (isStale(asOfIso, nowIso)) reasons.push("availability is out of date");
-    if (noticeHours(nowIso, request.date, request.startTime) < NOTICE_HOURS) reasons.push("less than 24 hours' notice");
+    if (noticeHours(nowIso, request.date, request.startTime) < minNotice) reasons.push(minNotice === NOTICE_HOURS ? "less than 24 hours' notice" : "less than " + minNotice + " hours' notice");
     if (!withinTradingHours(request.startTime, request.hours)) reasons.push(TRADING_WORDS);
     if (!slotIsFree(request.date, request.startTime, request.hours, others)) reasons.push("the time is not free on the van");
     const travel = travelReason(request.travelKm);
@@ -175,11 +178,12 @@ var WanderRules = (function () {
 
   // A change to a confirmed booking is applied at once when the new slot is free, the address is inside free travel, and
   // both the booking and the new time are 24 hours or more away. Otherwise it is asked of Sam.
-  function decideChange(booking, change, others, asOfIso, nowIso) {
+  function decideChange(booking, change, others, asOfIso, nowIso, opts) {
     const reasons = [];
+    const minNotice = opts && Number(opts.minNoticeHours) > 0 ? Math.min(NOTICE_HOURS, Number(opts.minNoticeHours)) : NOTICE_HOURS;
     if (isStale(asOfIso, nowIso)) reasons.push("availability is out of date");
-    if (noticeHours(nowIso, booking.date, booking.startTime) < NOTICE_HOURS) reasons.push("less than 24 hours' notice");
-    if (noticeHours(nowIso, change.date, change.startTime) < NOTICE_HOURS) reasons.push("the new time is less than 24 hours away");
+    if (noticeHours(nowIso, booking.date, booking.startTime) < minNotice) reasons.push(minNotice === NOTICE_HOURS ? "less than 24 hours' notice" : "less than " + minNotice + " hours' notice");
+    if (noticeHours(nowIso, change.date, change.startTime) < minNotice) reasons.push(minNotice === NOTICE_HOURS ? "the new time is less than 24 hours away" : "the new time is less than " + minNotice + " hours away");
     if (!withinTradingHours(change.startTime, change.hours)) reasons.push("the new time is " + TRADING_WORDS);
     if (!slotIsFree(change.date, change.startTime, change.hours, others)) reasons.push("the new time is not free on the van");
     const travel = travelReason(change.travelKm);

@@ -2,6 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const WanderRules = require("../rules.js");
 globalThis.WanderRules = WanderRules;
+globalThis.WanderPackRules = require("../packrules.js");
 const S = require("./logic.js");
 
 const APP = "APP-TOKEN-0123456789abcdef";
@@ -695,6 +696,20 @@ test("a far suburb, a taken slot and an unknown place are requested, never held,
   assert.ok(taken.key && S.session(db, taken.key, NOW).ok);
 });
 
+test("a prepaid contract enquiry is requested, never held, so it does not block the van; the package reaches Sam", () => {
+  const db = makeDb();
+  publish(db);
+  const r = S.newHold(db, newhold({ requestId: "ct-1", email: "ct@example.com", package: "Prepaid contract 6 months" }), NOW);
+  assert.equal(r.ok, true);
+  assert.equal(r.outcome, "requested");
+  assert.equal(db.tables.holds.length, 0);
+  const q = db.tables.queue.filter((x) => x.kind === "newhold");
+  assert.equal(JSON.parse(q[0].payload).request.package, "Prepaid contract 6 months");
+  assert.ok(r.key && S.session(db, r.key, NOW).ok);
+  // an ordinary single morning at the same time is still held
+  assert.equal(S.newHold(db, newhold({ requestId: "ct-2", email: "ct2@example.com", package: "Single morning" }), NOW).outcome, "held");
+});
+
 test("a bad request writes nothing: no name, a short phone, a bad email, bad people, a bad date", () => {
   const db = makeDb();
   publish(db);
@@ -969,4 +984,142 @@ test("extras: a booking the page holds but the app has not published yet gets no
   assert.equal(held.extrasMenu, undefined);
   assert.deepEqual(held.extras, []);
   assert.equal(S.extra(db, extraBody({ bookingId: "hold-req-h1" }), NOW).error, "not-found");
+});
+
+// ---- prepaid contracts (Sam, 16 Nov 2026): published per client, shown on the client's page, asked about by enquiry ----
+
+const contractFor = (over = {}) => ({
+  termMonths: 6, status: "active", mornings: 24, used: 3, freeHours: 2, freeHoursUsed: 0, freeHoursUnlocked: false,
+  startDate: "2026-12-01", endDate: "2027-05-31", pausedWeeks: 0, nextInstalment: { dueDate: "2027-01-01", amount: 1832 },
+  ...over,
+});
+
+test("a published contract reaches only its own client's session, as counts and dates", () => {
+  const db = makeDb();
+  const alex = "TOKEN-ALEX-0000000000000001", sam = "TOKEN-SAM-00000000000000002";
+  const withContract = (contract) => publish(db, { clients: [{ token: alex, firstName: "Alex", referralCode: "K7M2-QXTP", contract }, { token: sam, firstName: "Sam", referralCode: "H4BC-7WDR" }] });
+  assert.equal(withContract({ ...contractFor(), bank: "123-456", method: "bank" }).ok, true);
+  const mine = S.session(db, alex, NOW);
+  assert.equal(mine.contract.left, 21);
+  assert.equal(mine.contract.termMonths, 6);
+  assert.deepEqual(mine.contract.nextInstalment, { dueDate: "2027-01-01", amount: 1832 });
+  assert.equal(JSON.stringify(mine.contract).includes("bank"), false);
+  assert.equal(S.session(db, sam, NOW).contract, null);
+});
+
+test("a malformed or impossible contract is dropped, not shown", () => {
+  const db = makeDb();
+  const alex = "TOKEN-ALEX-0000000000000001";
+  for (const bad of [contractFor({ termMonths: 5 }), contractFor({ used: 99 }), contractFor({ status: "weird" }), contractFor({ startDate: "soon" }), "x"]) {
+    publish(db, { clients: [{ token: alex, firstName: "Alex", referralCode: "K7M2-QXTP", contract: bad }] });
+    assert.equal(S.session(db, alex, NOW).contract, null);
+  }
+});
+
+test("an enquiry (paying ahead, a photographer) is a request for Sam to ring, queued once, with no charge", () => {
+  const db = makeDb();
+  publish(db);
+  const k = "TOKEN-ALEX-0000000000000001";
+  const r = S.request(db, { k, kind: "enquiry", requestId: "enq-1", enquiry: "contract-6", note: "Twenty staff, Fridays" }, NOW);
+  assert.equal(r.ok, true);
+  assert.equal(r.outcome, "requested");
+  assert.match(r.message, /We'll ring you within 24 hours\. Nothing is charged/);
+  const again = S.request(db, { k, kind: "enquiry", requestId: "enq-1", enquiry: "contract-6" }, NOW);
+  assert.deepEqual(again, r);
+  const q = db.tables.queue.filter((x) => x.kind === "enquiry");
+  assert.equal(q.length, 1);
+  assert.equal(JSON.parse(q[0].payload).request.enquiry, "contract-6");
+  assert.equal(S.request(db, { k, kind: "enquiry", requestId: "enq-2", enquiry: "free-money" }, NOW).error, "bad-enquiry");
+  assert.equal(S.request(db, { k, kind: "enquiry", requestId: "enq-3", enquiry: "photographer" }, NOW).outcome, "requested");
+});
+
+// ---- 4-Pack v2 (Sam, 16 Nov 2026): a pack holder books with 12 hours' notice, two such mornings a week ----
+
+const packFor = (over = {}) => ({
+  mornings: 4, delivered: 1, booked: 0, validUntil: "2027-11-20", pausedDays: 0, invoiceNo: "4P-20261101-1",
+  standing: { weekday: 2, startTime: "09:00", hours: 2, address: "1 Main Street, Tea Gardens" },
+  standingMonths: [{ month: "2026-12", date: "2026-12-15", state: "proposed" }, { month: "2027-01", date: "2027-01-19", state: "released" }],
+  setup: { address: "1 Main Street, Tea Gardens", people: 20, hours: 2, startTime: "09:00", askFor: "Dana", access: "Back gate", orderNotes: "Two oat flat whites" },
+  ...over,
+});
+const withPack = (db, pack) => publish(db, { clients: [{ token: ALEX, firstName: "Alex", referralCode: "K7M2-QXTP", pack }, { token: SAM, firstName: "Sam", referralCode: "H4BC-7WDR" }], busy: [], bookings: [], credits: [] });
+const NOW_NIGHT = "2026-12-01T20:00:00+11:00"; // 8 pm: a 9 am start tomorrow is 13 hours away
+const nearHold = (token, requestId, date, startTime = "09:00", extra = {}) => ({ k: token, kind: "hold", requestId, date, startTime, people: 20, hours: 2, address: "3 Lake Road, Tea Gardens", suburb: "tea-gardens", shownTotal: 458, shownFee: 0, ...extra });
+
+test("a published pack reaches its own client's page with counts, dates, the standing morning and the set-up", () => {
+  const db = makeDb();
+  withPack(db, packFor());
+  const p = S.session(db, ALEX, NOW).pack;
+  assert.equal(p.mornings, 4);
+  assert.equal(p.left, 3);
+  assert.equal(p.expiresAt, "2027-11-20");
+  assert.equal(p.standing.weekday, 2);
+  assert.deepEqual(p.standingMonths.map((m) => m.state), ["proposed", "released"]);
+  assert.equal(p.setup.askFor, "Dana");
+  assert.equal(S.session(db, SAM, NOW).pack, null);
+});
+
+test("a malformed pack is dropped, not shown", () => {
+  const db = makeDb();
+  for (const bad of [packFor({ mornings: 0 }), packFor({ validUntil: "next year" }), packFor({ delivered: -1 }), "x"]) {
+    withPack(db, bad);
+    assert.equal(S.session(db, ALEX, NOW).pack, null);
+  }
+});
+
+test("a pack holder is held 13 hours ahead; a single client at the same time is requested", () => {
+  const db = makeDb();
+  withPack(db, packFor());
+  const asOf = { asOf: "2026-12-01T19:30:00+11:00" };
+  publish(db, { ...asOf, clients: [{ token: ALEX, firstName: "Alex", referralCode: "K7M2-QXTP", pack: packFor() }, { token: SAM, firstName: "Sam", referralCode: "H4BC-7WDR" }], busy: [], bookings: [], credits: [] });
+  const mine = S.request(db, nearHold(ALEX, "p-1", "2026-12-02"), NOW_NIGHT);
+  assert.equal(mine.outcome, "held");
+  const q = db.tables.queue.filter((x) => x.id === "p-1")[0];
+  assert.equal(JSON.parse(q.payload).request.shortNotice, true);
+  const single = S.request(db, nearHold(SAM, "s-1", "2026-12-02", "13:00"), NOW_NIGHT);
+  assert.equal(single.outcome, "requested");
+});
+
+test("only two short-notice mornings a week across all packs, then it is a request", () => {
+  const db = makeDb();
+  publish(db, { asOf: "2026-12-01T19:30:00+11:00", clients: [{ token: ALEX, firstName: "Alex", referralCode: "K7M2-QXTP", pack: packFor() }, { token: SAM, firstName: "Sam", referralCode: "H4BC-7WDR", pack: packFor() }], busy: [], bookings: [], credits: [] });
+  assert.equal(S.request(db, nearHold(ALEX, "w-1", "2026-12-02", "09:00"), NOW_NIGHT).outcome, "held");
+  assert.equal(S.request(db, nearHold(SAM, "w-2", "2026-12-03", "07:30"), "2026-12-01T20:30:00+11:00").outcome, "held");
+  const third = S.request(db, nearHold(ALEX, "w-3", "2026-12-04", "07:00"), "2026-12-02T18:00:00+11:00");
+  assert.equal(third.outcome, "requested");
+});
+
+test("an expired pack, a pack with nothing left, or 11 hours' notice is still a request", () => {
+  for (const [label, pack, start] of [["expired", packFor({ validUntil: "2026-11-30" }), "09:00"], ["used up", packFor({ delivered: 4 }), "09:00"], ["11 hours", packFor(), "07:00"]]) {
+    const db = makeDb();
+    publish(db, { asOf: "2026-12-01T19:30:00+11:00", clients: [{ token: ALEX, firstName: "Alex", referralCode: "K7M2-QXTP", pack }], busy: [], bookings: [], credits: [] });
+    assert.equal(S.request(db, nearHold(ALEX, "x-" + label, "2026-12-02", start), NOW_NIGHT).outcome, "requested", label);
+  }
+});
+
+// ---- first pick: the public sees 60 days; a pack holder sees 3 more, 2-hour mornings only ----
+
+test("a pack holder sees three more days of 2-hour mornings; the public and other lengths stop at 60", () => {
+  const db = makeDb();
+  publish(db, { clients: [{ token: ALEX, firstName: "Alex", referralCode: "K7M2-QXTP", pack: packFor() }, { token: SAM, firstName: "Sam", referralCode: "H4BC-7WDR" }], busy: [], bookings: [], credits: [] });
+  const last = (r) => Object.keys(r.days).sort().pop();
+  const mine2 = S.availability(db, { k: ALEX, hours: 2 }, NOW);
+  const mine3 = S.availability(db, { k: ALEX, hours: 3 }, NOW);
+  const single2 = S.availability(db, { k: SAM, hours: 2 }, NOW);
+  assert.equal(mine2.window.through, "2027-02-01");
+  assert.equal(last(mine2), "2027-02-01");
+  assert.equal(mine3.window.through, "2027-01-29");
+  assert.equal(single2.window.through, "2027-01-29");
+  assert.equal(last(single2), "2027-01-29");
+  assert.equal(S.openTimes(db, { hours: 2 }, NOW).window.through, "2027-01-29");
+});
+
+test("a date in the first-pick days is held for a pack holder's 2-hour morning and only requested for anyone else", () => {
+  const db = makeDb();
+  publish(db, { clients: [{ token: ALEX, firstName: "Alex", referralCode: "K7M2-QXTP", pack: packFor() }, { token: SAM, firstName: "Sam", referralCode: "H4BC-7WDR" }], busy: [], bookings: [], credits: [] });
+  const ask = (token, id, date, hours) => S.request(db, { k: token, kind: "hold", requestId: id, date, startTime: "09:00", people: 20, hours, address: "3 Lake Road, Tea Gardens", suburb: "tea-gardens", shownTotal: 458, shownFee: 0 }, NOW);
+  assert.equal(ask(ALEX, "fp-1", "2027-02-01", 2).outcome, "held");
+  assert.equal(ask(ALEX, "fp-2", "2027-02-01", 3).outcome, "requested");
+  assert.equal(ask(SAM, "fp-3", "2027-02-01", 2).outcome, "requested");
+  assert.equal(ask(SAM, "fp-4", "2027-01-29", 2).outcome, "held"); // inside the public 60 days: unchanged
 });

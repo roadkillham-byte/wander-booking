@@ -78,7 +78,7 @@
     var raw = location.hash.replace(/^#/, "");
     var params = new URLSearchParams(raw);
     state.k = params.get("k");
-    state.route = { v: params.get("v") || "home", b: params.get("b") || "" };
+    state.route = { v: params.get("v") || "home", b: params.get("b") || "", setup: params.get("setup") === "1" };
   }
   function go(v, extra) {
     var params = new URLSearchParams();
@@ -102,6 +102,7 @@
     var navHtml = !opts.nav ? "" :
       '<nav class="top"><a href="#k=' + encodeURIComponent(state.k) + '&v=bookings">My bookings</a>' +
       '<a href="#k=' + encodeURIComponent(state.k) + '&v=pack">My 4-Pack</a>' +
+      (state.session && state.session.contract ? '<a href="#k=' + encodeURIComponent(state.k) + '&v=contract">My contract</a>' : "") +
       '<a href="#k=' + encodeURIComponent(state.k) + '&v=compare">Compare options</a>' +
       '<a href="#k=' + encodeURIComponent(state.k) + '&v=refer">Refer a team</a></nav>';
     return '<header class="band rise"><img src="assets/wander-logo.png" alt="Wander Coffee Van">' +
@@ -422,14 +423,85 @@
   // Same words as the quote and confirmation emails (Sam, 15 Nov 2026).
   var PACK_TERMS = "Terms: the 4-Pack does not include photography, and we do not use photos of your people or premises in our advertising unless you agree to it first.";
 
+  var WEEKDAYS = ["Sundays", "Mondays", "Tuesdays", "Wednesdays", "Thursdays", "Fridays", "Saturdays"];
+  var STANDING_STATE = { confirmed: "confirmed", released: "released back to everyone" };
+  // The standing morning and the saved set-up, as Coffee Van published them. Wording stays true: a "proposed" date is held, not yet confirmed.
+  function packExtrasHtml(pack) {
+    var out = "";
+    if (pack.standing) {
+      out += "<p>Your standing morning: " + esc(WEEKDAYS[pack.standing.weekday]) + " at " + esc(clock(pack.standing.startTime)) + ", " + esc(pack.standing.hours) + " hours.</p>";
+      if (pack.standingMonths && pack.standingMonths.length) {
+        out += '<ul class="standing">' + pack.standingMonths.map(function (m) {
+          var words = m.state === "proposed" ? "held for you. Tell us by " + dayName(WanderRules.addDays(m.date, -7)) + " to keep it" : (STANDING_STATE[m.state] || m.state);
+          return "<li>" + esc(dayName(m.date)) + ": " + esc(words) + "</li>";
+        }).join("") + "</ul>";
+      }
+    }
+    if (pack.pausedDays) out += "<p>You\'ve paused " + esc(pack.pausedDays) + " of your 42 days, and your valid-until date has moved with it.</p>";
+    if (pack.setup && pack.left > 0) {
+      out += '<p><a class="go" href="#k=' + encodeURIComponent(state.k) + '&v=pick&setup=1">Book the next one, same set-up</a></p>' +
+        '<p class="note">' + esc(pack.setup.people) + " people, " + esc(pack.setup.hours) + " hours at " + esc(clock(pack.setup.startTime)) + (pack.setup.address ? ", " + esc(pack.setup.address) : "") + ".</p>";
+    }
+    out += '<p class="note">Booking at the last minute? A 4-Pack morning can be booked with half a day\'s notice (two a week, when we have the room). To pause (up to 6 weeks) or change your standing morning, ring us.</p>';
+    return out;
+  }
+
   function renderPack() {
     var pack = state.session && state.session.pack;
     var inner = '<section class="rise d1"><h2 class="rule">My 4-Pack</h2>' +
-      (pack ? "<p>" + esc(pack.left) + " mornings left of " + esc(pack.mornings) + ". Valid until " + esc(dayName(pack.expiresAt)) + ".</p>"
+      (pack ? "<p>" + esc(pack.left) + " mornings left of " + esc(pack.mornings) + ". Valid until " + esc(dayName(pack.expiresAt)) + ".</p>" + packExtrasHtml(pack)
         : "<p>You do not have a 4-Pack yet. Four mornings, paid up front, for the price of four singles.</p>" +
           '<p><a href="#k=' + encodeURIComponent(state.k) + '&v=pick">Pick a morning first</a>, then we offer the 4-Pack.</p>') +
-      '<p class="note pack-terms">' + esc(PACK_TERMS) + "</p></section>";
+      '<p class="note pack-terms">' + esc(PACK_TERMS) + "</p></section>" + contractOfferHtml();
     return shell(inner, { nav: true, greet: "Your 4-Pack, " + firstName() + "." });
+  }
+
+  // Paying ahead (Sam, 16 Nov 2026): three terms, asked about by enquiry. Nothing is charged here; Sam rings to set it up. The price per
+  // morning is the single-morning price (the 4-Pack price is four of them); the free service hours are confirmed on the call.
+  var CONTRACT_OFFERS = [
+    { key: "contract-3", months: 3, mornings: 12, how: "bank transfer or card" },
+    { key: "contract-6", months: 6, mornings: 24, how: "bank transfer" },
+    { key: "contract-12", months: 12, mornings: 48, how: "bank transfer" },
+  ];
+  function contractOfferHtml() {
+    var q = state.session && state.session.quote;
+    var pack = packFor(q ? q.people : 20, q ? q.hours : 3);
+    var morning = pack ? Number(pack.price) / 4 : null;
+    var rows = CONTRACT_OFFERS.map(function (o) {
+      var total = morning ? morning * o.mornings : null;
+      return "<li><strong>" + o.months + " months</strong>: " + o.mornings + " mornings" +
+        (total ? " at " + money(morning) + " each, " + money(total) + " in all, or " + money(total / o.months) + " a month" : "") +
+        ". Paid by " + o.how + '. <button type="button" class="go ghost" data-enquiry="' + o.key + '">Ask us about this</button></li>';
+    }).join("");
+    return '<section class="rise d2"><h2 class="rule">Regular mornings? Pay ahead</h2>' +
+      "<p>Four mornings a month for a term, each at the single-morning price, with free service hours on top. Book as many of your paid mornings as you like, any time in the term. You can pause for up to 6 weeks, and any you don\'t use are refunded.</p>" +
+      '<ul class="contract-offers">' + rows + "</ul>" +
+      '<p class="note">Nothing is charged here. Ask and we\'ll ring you to set it up.</p></section>';
+  }
+
+  function renderEnquirySent(resp) {
+    var inner = '<section class="rise d1"><h2 class="rule">We appreciate you asking!</h2><p>' + esc((resp && resp.message) || "We\'ll ring you within 24 hours. Nothing is charged.") + "</p></section>";
+    return shell(inner, { nav: true, greet: "We appreciate you, " + firstName() + "!" });
+  }
+
+  function renderContract() {
+    var c = state.session && state.session.contract;
+    var link = '<p><a class="go" href="#k=' + encodeURIComponent(state.k) + '&v=pick">Book a morning</a></p>';
+    var inner;
+    if (!c) {
+      inner = '<section class="rise d1"><h2 class="rule">My contract</h2><p>You do not have a contract yet.</p></section>' + contractOfferHtml();
+    } else {
+      var halfway = Math.ceil(c.mornings / 2);
+      inner = '<section class="rise d1"><h2 class="rule">My contract</h2>' +
+        "<p><strong>" + esc(c.left) + " mornings left</strong> of " + esc(c.mornings) + ", " + esc(c.termMonths) + " months from " + esc(dayName(c.startDate)) + " to " + esc(dayName(c.endDate)) +
+        (c.status === "cancelled" ? ". This contract has ended." : c.status === "complete" ? ". All mornings delivered." : ".") + "</p>" +
+                (c.freeHours > 0 ? "<p>Free service hours: " + esc(c.freeHours) + (c.freeHoursUnlocked ? (c.freeHoursUsed ? " (" + esc(c.freeHoursUsed) + " used)" : ", ready to use.") : ", unlocked after " + esc(halfway) + " mornings.") + "</p>" : "") +
+        (c.pausedWeeks ? "<p>You\'ve paused " + esc(c.pausedWeeks) + " of your 6 weeks.</p>" : "") +
+        (c.nextInstalment ? "<p>Next payment: " + money(c.nextInstalment.amount) + " due " + esc(dayName(c.nextInstalment.dueDate)) + ".</p>" : "") +
+        (c.status === "active" ? link : "") +
+        '<p class="note">To pause, change or ask anything, ring us on ' + esc(window.WANDER_PHONE_DISPLAY || "") + ".</p></section>";
+    }
+    return shell(inner, { nav: true, greet: "Your contract, " + firstName() + "." });
   }
 
   var ORDINALS = { 2: "second", 3: "third", 4: "fourth", 5: "fifth" };
@@ -565,6 +637,7 @@
       var b = list.filter(function (x) { return x.id === body.bookingId; })[0];
       return "I would like to cancel my morning" + (b ? " on " + dayName(b.date) + " at " + clock(b.startTime) : "") + ".";
     }
+    if (body.kind === "enquiry") return "Please ring me about " + (body.enquiry === "photographer" ? "a photographer" : "paying ahead for " + String(body.enquiry).replace("contract-", "") + " months") + ".";
     if (body.kind === "call") return "Please ring me" + (body.when ? ": " + body.when : "") + ".";
     var what = { hold: "book", change: "change my booking to", pack: "ask about a 4-Pack starting" }[body.kind] || "book";
     return "I tried to " + what + " " + dayName(body.date) + " at " + clock(body.startTime) + " for " + body.people + " people, " + body.hours +
@@ -641,6 +714,13 @@
       var b = state.lastHold || {};
       send({ k: state.k, kind: "pack", requestId: uid(), date: b.date, startTime: b.startTime, people: b.people, hours: b.hours },
         function (resp) { showPage(renderConfirmed(resp)); });
+    });
+    Array.prototype.forEach.call(app.querySelectorAll("button[data-enquiry]"), function (btn) {
+      btn.addEventListener("click", function () {
+        if (state.busy) return;
+        track("cta", { v: "enquiry-" + btn.getAttribute("data-enquiry") });
+        send({ k: state.k, kind: "enquiry", requestId: uid(), enquiry: btn.getAttribute("data-enquiry") }, function (resp) { state.notice = null; showPage(renderEnquirySent(resp)); }); // the page itself says it: no second notice
+      });
     });
     var no = document.getElementById("pack-no");
     if (no) no.addEventListener("click", function () {
@@ -779,6 +859,8 @@
     var html;
     if (v === "pick" || v === "change") {
       var from = state.session.quote || lastCompleted();
+      var packSetup = state.route.setup && state.session.pack && state.session.pack.setup;
+      if (packSetup && packSetup.startTime && packSetup.people && packSetup.hours) from = { date: "", startTime: packSetup.startTime, people: packSetup.people, hours: packSetup.hours, address: packSetup.address };
       var seed = from ? { date: state.session.quote ? from.date : "", startTime: from.startTime || "09:00", people: from.people, hours: from.hours, address: from.address || "" }
         : { date: "", startTime: "09:00", people: 20, hours: 3, address: "" };
       if (!state.session.quote && from) seed = seedFrom(from);
@@ -787,6 +869,7 @@
     else if (v === "bookings") html = renderBookings();
     else if (v === "booking") html = renderBooking();
     else if (v === "pack") html = renderPack();
+    else if (v === "contract") html = renderContract();
     else if (v === "compare") html = renderCompare();
     else if (v === "refer") html = renderRefer();
     else if (v === "call") html = renderCall();

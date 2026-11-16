@@ -17,7 +17,7 @@ var StoreLogic = (function () {
   var CREDIT_KINDS = ["returning", "referral", "friend", "captain"];
 
   var TABLES = {
-    clients: ["token", "firstName", "referralCode", "quote", "referrals", "club"],
+    clients: ["token", "firstName", "referralCode", "quote", "referrals", "club", "contract", "pack"],
     events: ["time", "type", "data"],
     bookings: ["id", "clientToken", "status", "date", "startTime", "endTime", "people", "hours", "address", "total", "outOfHoursFee", "requestId",
       "discount", "amountDue", "bonusHours", "creditsApplied", "payLink", "paid",
@@ -110,6 +110,53 @@ var StoreLogic = (function () {
     return { month: String(c.month), used: used, perMonth: perMonth };
   }
 
+  // A client's prepaid contract, as Coffee Van publishes it for their page: counts, dates and the next instalment only. Never a method
+  // of payment, an account detail or anything about another client.
+  var CONTRACT_STATUS = ["active", "cancelled", "complete"];
+  function cleanContract(c) {
+    if (!c || typeof c !== "object") return null;
+    var months = Number(c.termMonths);
+    if ([3, 6, 12].indexOf(months) < 0 || CONTRACT_STATUS.indexOf(c.status) < 0) return null;
+    var mornings = money(c.mornings), used = money(c.used), freeHours = money(c.freeHours), freeUsed = money(c.freeHoursUsed);
+    if (mornings === null || used === null || freeHours === null || freeUsed === null || mornings < 1 || used < 0 || used > mornings) return null;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(c.startDate)) || !/^\d{4}-\d{2}-\d{2}$/.test(String(c.endDate))) return null;
+    var next = null;
+    if (c.nextInstalment && /^\d{4}-\d{2}-\d{2}$/.test(String(c.nextInstalment.dueDate)) && money(c.nextInstalment.amount) !== null) {
+      next = { dueDate: String(c.nextInstalment.dueDate), amount: money(c.nextInstalment.amount) };
+    }
+    return {
+      termMonths: months, status: String(c.status), mornings: mornings, used: used, left: mornings - used,
+      startDate: String(c.startDate), endDate: String(c.endDate),
+      freeHours: freeHours, freeHoursUsed: freeUsed, freeHoursUnlocked: c.freeHoursUnlocked === true,
+      pausedWeeks: money(c.pausedWeeks) || 0, nextInstalment: next,
+    };
+  }
+
+  // A client's 4-Pack as Coffee Van publishes it (docs/4-pack-v2.md in the app repo): counts, dates, the standing morning and the saved
+  // set-up. Anything malformed is dropped rather than shown. No payment detail is ever published.
+  function cleanPack(p) {
+    if (!p || typeof p !== "object") return null;
+    var day = /^\d{4}-\d{2}-\d{2}$/;
+    var mornings = money(p.mornings), delivered = money(p.delivered), booked = money(p.booked);
+    if (mornings === null || mornings < 1 || delivered === null || booked === null || delivered < 0 || booked < 0) return null;
+    if (!day.test(String(p.validUntil))) return null;
+    var pausedDays = money(p.pausedDays) || 0;
+    var standing = null;
+    if (p.standing && typeof p.standing === "object" && Number(p.standing.weekday) >= 0 && Number(p.standing.weekday) <= 6 && /^\d{2}:\d{2}$/.test(String(p.standing.startTime))) {
+      standing = { weekday: Number(p.standing.weekday), startTime: String(p.standing.startTime), hours: money(p.standing.hours) || 2, address: clean(p.standing.address, 160) };
+    }
+    var months = (Array.isArray(p.standingMonths) ? p.standingMonths : []).filter(function (m) {
+      return m && /^\d{4}-\d{2}$/.test(String(m.month)) && day.test(String(m.date)) && ["proposed", "confirmed", "released"].indexOf(m.state) >= 0;
+    }).slice(0, 12).map(function (m) { return { month: String(m.month), date: String(m.date), state: String(m.state) }; });
+    var setup = null;
+    if (p.setup && typeof p.setup === "object") {
+      setup = { address: clean(p.setup.address, 160), people: money(p.setup.people) || 0, hours: money(p.setup.hours) || 0, startTime: /^\d{2}:\d{2}$/.test(String(p.setup.startTime)) ? String(p.setup.startTime) : "",
+        askFor: clean(p.setup.askFor, 80), access: clean(p.setup.access, 200), orderNotes: clean(p.setup.orderNotes, 300) };
+    }
+    return { mornings: mornings, delivered: delivered, booked: booked, left: Math.max(0, mornings - delivered), toBook: Math.max(0, mornings - delivered - booked), used: delivered, validUntil: String(p.validUntil), expiresAt: String(p.validUntil),
+      pausedDays: Math.min(42, pausedDays), standing: standing, standingMonths: months, setup: setup, invoiceNo: clean(p.invoiceNo, 24) };
+  }
+
   // The referral offer in numbers, published by Coffee Van so the page's words follow what Coffee Van gives.
   function cleanReward(r) {
     if (!r || typeof r !== "object") return null;
@@ -187,7 +234,7 @@ var StoreLogic = (function () {
     for (var i = 0; i < rows.length; i++) if (rows[i].token === token) return rows[i];
     var fresh = db.read("newclients");
     for (var j = 0; j < fresh.length; j++) {
-      if (fresh[j].token === token) return { token: fresh[j].token, firstName: fresh[j].firstName, referralCode: "", quote: "", referrals: "[]", club: "" };
+      if (fresh[j].token === token) return { token: fresh[j].token, firstName: fresh[j].firstName, referralCode: "", quote: "", referrals: "[]", club: "", contract: "", pack: "" };
     }
     return null;
   }
@@ -211,11 +258,14 @@ var StoreLogic = (function () {
     return fields.shownTotal === null || fields.shownTotal === undefined ? 0 : Math.max(0, Number(fields.shownTotal) - Number(fields.shownFee || 0));
   }
 
+  var ENQUIRIES = ["contract-3", "contract-6", "contract-12", "photographer"];
+
   function copyFor(outcome, replyWithinHours, startTime) {
     if (outcome === "held") return "Held. We will confirm within " + replyWithinHours + " hours.";
     if (outcome === "applied") return "Done. Your morning now starts at " + startTime + ".";
     if (outcome === "cancel") return "We have your cancellation. We will confirm your credit within " + replyWithinHours + " hours.";
     if (outcome === "pack") return "Requested: we will confirm your first morning within " + replyWithinHours + " hours. Nothing is charged.";
+    if (outcome === "enquiry") return "We appreciate you asking! We'll ring you within " + replyWithinHours + " hours. Nothing is charged.";
     if (outcome === "call") return "Requested: we will ring you within " + replyWithinHours + " hours.";
     return "Requested: we will text you within " + replyWithinHours + " hours to confirm this.";
   }
@@ -262,6 +312,8 @@ var StoreLogic = (function () {
           quote: c.quote ? JSON.stringify(c.quote) : "",
           referrals: JSON.stringify(cleanReferrals(c.referrals)),
           club: JSON.stringify(cleanClub(c.club)),
+          contract: JSON.stringify(cleanContract(c.contract)),
+          pack: JSON.stringify(cleanPack(c.pack)),
         };
       });
       var bookings = (snapshot.bookings || []).map(function (b) {
@@ -363,6 +415,10 @@ var StoreLogic = (function () {
     try { referrals = client.referrals ? cleanReferrals(JSON.parse(client.referrals)) : []; } catch (e) { referrals = []; }
     var club = null;
     try { club = client.club ? cleanClub(JSON.parse(client.club)) : null; } catch (e) { club = null; }
+    var pack = null;
+    try { pack = client.pack ? cleanPack(JSON.parse(client.pack)) : null; } catch (e) { pack = null; }
+    var contract = null;
+    try { contract = client.contract ? cleanContract(JSON.parse(client.contract)) : null; } catch (e) { contract = null; }
     var bookings = db.read("bookings").filter(function (b) { return b.clientToken === token; }).map(function (b) {
       var applied = [];
       try { applied = b.creditsApplied ? cleanLabels(JSON.parse(b.creditsApplied)) : []; } catch (e) { applied = []; }
@@ -423,8 +479,37 @@ var StoreLogic = (function () {
       bookings: bookings,
       pending: pendingItems,
       credits: credits,
-      pack: null,
+      pack: pack,
+      contract: contract,
     };
+  }
+
+  // A 4-Pack holder (valid, with mornings left) may book with 12 hours' notice instead of 24, up to 2 such mornings a week across all packs
+  // (4-Pack v2, Sam 16 Nov 2026; packrules.js decides, this only asks). Without packrules.js in the project the 24 hours simply stay.
+  function activePackOf(client, now) {
+    var pack = null;
+    try { pack = client && client.pack ? cleanPack(JSON.parse(client.pack)) : null; } catch (e) { pack = null; }
+    if (!pack || pack.left < 1 || pack.validUntil < WanderRules.sydneyDate(now)) return null;
+    return pack;
+  }
+  function shortNoticeThisWeek(db, date) {
+    var week = WanderPackRules.weekStart(date), n = 0;
+    db.read("queue").forEach(function (q) {
+      if (q.kind !== "hold" && q.kind !== "change") return;
+      try {
+        var p = JSON.parse(q.payload), r = p.request || {}, outcome = (p.response || {}).outcome;
+        if (r.shortNotice === true && (outcome === "held" || outcome === "applied") && WanderPackRules.weekStart(r.date) === week) n += 1;
+      } catch (e) { /* an unreadable row counts for nobody */ }
+    });
+    return n;
+  }
+  function packNoticeFor(db, client, date, startTime, now) {
+    var none = { opts: undefined, shortNotice: false };
+    if (typeof WanderPackRules === "undefined" || !activePackOf(client, now)) return none;
+    var hoursAhead = WanderRules.noticeHours(now, date, startTime);
+    if (!(hoursAhead < WanderRules.NOTICE_HOURS)) return none;
+    var verdict = WanderPackRules.noticeAllowed({ hoursAhead: hoursAhead, isPackHolder: true, urgentThisWeek: shortNoticeThisWeek(db, date) });
+    return verdict.ok && verdict.outcome === "hold" ? { opts: { minNoticeHours: WanderPackRules.PACK_NOTICE_HOURS }, shortNotice: true } : none;
   }
 
   // One client request. Every path returns a response the page can show; nothing is an error screen.
@@ -454,13 +539,27 @@ var StoreLogic = (function () {
         fields = { bookingId: clean(body.bookingId, 80) };
       } else if (kind === "call") {
         fields = { when: clean(body.when, 80), note: clean(body.note, 300) };
+      } else if (kind === "enquiry") {
+        // One generic "ask us about it" request, priced by nobody here: Sam rings the client. Today: paying ahead for 3, 6 or 12 months,
+        // and (once its hourly rate is known) a photographer. A new kind of enquiry is one more entry in ENQUIRIES.
+        var what = clean(body.enquiry, 24);
+        if (ENQUIRIES.indexOf(what) < 0) return { ok: false, error: "bad-enquiry" };
+        fields = { enquiry: what, note: clean(body.note, 300) };
       } else {
         return { ok: false, error: "unknown-kind" };
       }
 
       if (kind === "hold") {
         var others = busyOn(db, fields.date);
-        var held = WanderRules.decideHold({ date: fields.date, startTime: fields.startTime, hours: fields.hours, travelKm: fields.travelKm }, others, asOf, now);
+        var holdNotice = packNoticeFor(db, client, fields.date, fields.startTime, now);
+        var held = WanderRules.decideHold({ date: fields.date, startTime: fields.startTime, hours: fields.hours, travelKm: fields.travelKm }, others, asOf, now, holdNotice.opts);
+        fields.shortNotice = holdNotice.shortNotice && held.decision === "held";
+        if (held.decision === "held" && typeof WanderPackRules !== "undefined") {
+          var ahead = WanderPackRules.daysBetween(WanderRules.sydneyDate(now), fields.date);
+          if (ahead >= AVAILABILITY_DAYS && ahead < AVAILABILITY_DAYS + WanderPackRules.FIRST_PICK_DAYS && !(activePackOf(client, now) && firstPickDayOpen(WanderRules.sydneyDate(now), fields.date, fields.hours, now))) {
+            held = { decision: "requested", reasons: (held.reasons || []).concat(["first pick for 4-Pack holders"]) };
+          }
+        }
         var reply = WanderRules.replyWithinHours(now, fields.date, fields.startTime);
         var outcome = held.decision;
         response = { ok: true, outcome: outcome, replyWithinHours: reply, message: copyFor(outcome === "held" ? "held" : "requested", reply) };
@@ -481,7 +580,9 @@ var StoreLogic = (function () {
         var others2 = busyOn(db, fields.date).filter(function (b) {
           return !(b.date === booking.date && b.startTime === booking.startTime);
         });
-        var change = WanderRules.decideChange(booking, { date: fields.date, startTime: fields.startTime, hours: fields.hours, travelKm: fields.travelKm }, others2, asOf, now);
+        var changeNotice = packNoticeFor(db, client, fields.date, fields.startTime, now);
+        var change = WanderRules.decideChange(booking, { date: fields.date, startTime: fields.startTime, hours: fields.hours, travelKm: fields.travelKm }, others2, asOf, now, changeNotice.opts);
+        fields.shortNotice = changeNotice.shortNotice && change.decision === "applied";
         var reply2 = WanderRules.replyWithinHours(now, fields.date, fields.startTime);
         response = change.decision === "applied"
           ? { ok: true, outcome: "applied", replyWithinHours: reply2, bookingId: booking.id, message: copyFor("applied", reply2, fields.startTime) }
@@ -500,6 +601,9 @@ var StoreLogic = (function () {
         if (!target) return { ok: false, error: "not-found" };
         var reply3 = WanderRules.replyWithinHours(now, target.date, target.startTime);
         response = { ok: true, outcome: "requested", replyWithinHours: reply3, bookingId: target.id, message: copyFor("cancel", reply3) };
+        fields.decision = "requested";
+      } else if (kind === "enquiry") {
+        response = { ok: true, outcome: "requested", replyWithinHours: 24, message: copyFor("enquiry", 24) };
         fields.decision = "requested";
       } else if (kind === "pack") {
         var reply4 = WanderRules.replyWithinHours(now, fields.date, fields.startTime);
@@ -600,6 +704,8 @@ var StoreLogic = (function () {
       var asOf = metaValue(db, "asOf");
       var held = WanderRules.decideHold({ date: fields.date, startTime: fields.startTime, hours: fields.hours, travelKm: fields.travelKm }, busyOn(db, fields.date), asOf, now);
       var reply = WanderRules.replyWithinHours(now, fields.date, fields.startTime);
+      // A contract enquiry (the booking page's "Prepaid contract" choice) is a request Sam confirms by phone: it never holds the van's slot.
+      if (/^Prepaid contract/i.test(clean(body.package, 40)) && held.decision === "held") held = { decision: "requested", reasons: (held.reasons || []).concat(["contract enquiry"]) };
       var response = { ok: true, outcome: held.decision, replyWithinHours: reply, key: key, message: copyFor(held.decision === "held" ? "held" : "requested", reply) };
       if (held.decision === "held") {
         var holdId = "hold-" + requestId;
@@ -650,7 +756,7 @@ var StoreLogic = (function () {
     if (body.bookingId) {
       own = db.read("bookings").filter(function (b) { return b.id === clean(body.bookingId, 80) && b.clientToken === client.token; })[0] || null;
     }
-    return availabilityCore(db, hours, own, now);
+    return availabilityCore(db, hours, own, now, Boolean(activePackOf(client, now)));
   }
 
   // The same list for someone with no key yet (the booking page): nothing of anyone's is left out.
@@ -660,12 +766,22 @@ var StoreLogic = (function () {
     return availabilityCore(db, hours, null, now);
   }
 
-  function availabilityCore(db, hours, own, now) {
+  // First pick (4-Pack v2, Sam 16 Nov 2026): the public sees the next AVAILABILITY_DAYS days; a pack holder sees FIRST_PICK_DAYS more, but
+  // only the 2-hour mornings (packrules.js decides when each of those days opens). `firstPick` is true for a valid pack holder.
+  function firstPickDayOpen(today, date, hours, now) {
+    if (typeof WanderPackRules === "undefined" || Number(hours) !== 2) return false;
+    var ahead = WanderPackRules.daysBetween(today, date);
+    if (ahead < AVAILABILITY_DAYS || ahead >= AVAILABILITY_DAYS + WanderPackRules.FIRST_PICK_DAYS) return false;
+    return WanderPackRules.isFirstPickOpen(WanderRules.addDays(date, -(AVAILABILITY_DAYS - 1)), now);
+  }
+
+  function availabilityCore(db, hours, own, now, firstPick) {
     var asOf = metaValue(db, "asOf");
     var today = WanderRules.sydneyDate(now);
+    var reach = AVAILABILITY_DAYS + (firstPick && typeof WanderPackRules !== "undefined" && Number(hours) === 2 ? WanderPackRules.FIRST_PICK_DAYS : 0);
     var out = {
       ok: true, asOf: asOf, stale: WanderRules.isStale(asOf, now), hours: hours,
-      window: { from: today, through: WanderRules.addDays(today, AVAILABILITY_DAYS - 1) }, days: {},
+      window: { from: today, through: WanderRules.addDays(today, reach - 1) }, days: {},
     };
     if (out.stale || !today) return out;
     var byDate = {};
@@ -676,8 +792,9 @@ var StoreLogic = (function () {
     });
     db.read("holds").forEach(function (h) { add(h.date, { date: h.date, startTime: h.startTime, endTime: h.endTime }); });
     var times = startTimes();
-    for (var i = 0; i < AVAILABILITY_DAYS; i++) {
+    for (var i = 0; i < reach; i++) {
       var date = WanderRules.addDays(today, i);
+      if (i >= AVAILABILITY_DAYS && !(firstPick && firstPickDayOpen(today, date, hours, now))) continue;
       var others = byDate[date] || [];
       var free = times.filter(function (t) {
         return WanderRules.decideHold({ date: date, startTime: t, hours: hours, travelKm: 0 }, others, asOf, now).decision === "held";
