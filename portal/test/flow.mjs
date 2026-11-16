@@ -1,7 +1,7 @@
 // End-to-end check of the client journey in a headless browser at phone width: link, Held, Book, the 4-Pack offer,
 // a plain decline, and the confirmation. Run: node test/flow.mjs   (uses the Playwright install in render-engine).
 import { createRequire } from "node:module";
-import { startMock, MOCK_CLIENT_TOKEN, MOCK_RETURNING_TOKEN, MOCK_HANDMADE_TOKEN, MOCK_TWO_TOKEN, MOCK_CONTRACT_TOKEN, MOCK_EXTRAS_HELD_TOKEN, MOCK_EXTRAS_CONFIRMED_TOKEN, MOCK_EXTRAS_NONE_TOKEN, MOCK_EXTRAS_CANCELLED_TOKEN } from "../mock.mjs";
+import { startMock, MOCK_CLIENT_TOKEN, MOCK_RETURNING_TOKEN, MOCK_HANDMADE_TOKEN, MOCK_TWO_TOKEN, MOCK_CONTRACT_TOKEN, MOCK_PACK_TOKEN, MOCK_EXTRAS_HELD_TOKEN, MOCK_EXTRAS_CONFIRMED_TOKEN, MOCK_EXTRAS_NONE_TOKEN, MOCK_EXTRAS_CANCELLED_TOKEN } from "../mock.mjs";
 const require = createRequire(import.meta.url);
 const { chromium } = require(process.env.HOME + "/render-engine/node_modules/playwright-core");
 
@@ -513,6 +513,7 @@ await check("My 4-Pack offers paying ahead, and an enquiry reaches Sam with noth
   if (!/6 months: 24 mornings/.test(t) || !/Paid by bank transfer\./.test(t)) throw new Error("terms wrong: " + t);
   if (/bonus/i.test(t)) throw new Error("bonus mentioned");
   await noOverflowAndNoJunk("pay ahead offer");
+  await page.waitForTimeout(1500);
   await page.screenshot({ path: shots + "/dash-contract-offer.png", fullPage: true });
   await page.click('button[data-enquiry="contract-6"]');
   await page.waitForFunction(() => document.getElementById("app").innerText.includes("Sam will ring you"));
@@ -530,7 +531,28 @@ await check("My contract shows mornings left, free hours, the next payment, and 
   if (!t.includes("Book a morning")) throw new Error("no booking link");
   if (!t.includes("My contract")) throw new Error("no nav link");
   await noOverflowAndNoJunk("My contract");
+  await page.waitForTimeout(1500);
   await page.screenshot({ path: shots + "/dash-contract.png", fullPage: true });
+});
+
+await check("My 4-Pack shows the standing morning in true words, the 12-hour notice, and a one-tap rebook with the saved set-up", async () => {
+  await page.goto(url + "/#k=" + MOCK_PACK_TOKEN + "&v=pack");
+  await page.waitForSelector("#app h2");
+  const t = await page.innerText("#app");
+  if (!/3 mornings left of 4/.test(t)) throw new Error("count wrong: " + t.slice(0, 300));
+  if (!/Your standing morning: Tuesdays at 9(:00)? ?am, 2 hours/i.test(t)) throw new Error("standing line wrong: " + t.slice(0, 500));
+  if (!/held for you\. Tell us by .* to keep it/.test(t)) throw new Error("proposed wording wrong");
+  if (!/released back to everyone/.test(t) || !/confirmed/.test(t)) throw new Error("states missing");
+  if (!/half a day's notice/.test(t)) throw new Error("no notice line");
+  if (/bonus/i.test(t)) throw new Error("bonus mentioned");
+  if (/tap to confirm/i.test(t)) throw new Error("promises a tap that is not built");
+  await noOverflowAndNoJunk("My 4-Pack with standing");
+  await page.waitForTimeout(1500);
+  await page.screenshot({ path: shots + "/dash-pack-standing.png", fullPage: true });
+  await page.click("text=Book the next one, same set-up");
+  await page.waitForSelector("#app form, #app input");
+  const body = await page.innerText("#app");
+  if (!/20/.test(await page.inputValue("#people").catch(() => "20"))) throw new Error("people not seeded: " + body.slice(0, 200));
 });
 
 await check("no page errors", async () => {

@@ -5,7 +5,7 @@ Nothing here is live. Each step below is a click or a yes from Sam. Do them in t
 ## 1. Store (Apps Script, one project, its own Sheet)
 
 1. Create a new Google Sheet "Wander Customer Portal store". Copy its ID from the URL.
-2. In Apps Script (from that Sheet: Extensions > Apps Script), create a new project. Paste in `store/Adapter.gs`, `rules.js` and `store/logic.js`, as three files in that order.
+2. In Apps Script (from that Sheet: Extensions > Apps Script), create a new project. Paste in `store/Adapter.gs`, `rules.js`, `packrules.js` (the 4-Pack v2 rules; without it pack holders keep the 24-hour notice) and `store/logic.js`, as three files in that order.
 3. Project Settings > Script properties:
    - `STORE_SHEET_ID` = the Sheet ID.
    - `APP_TOKEN` = 16+ random characters. Put the same value in Coffee Van's `~/.config/coffee-van/dashboard.env` as `DASHBOARD_APP_TOKEN` (Claude can write that file; never paste the value into chat or notes).

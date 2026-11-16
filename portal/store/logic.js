@@ -17,7 +17,7 @@ var StoreLogic = (function () {
   var CREDIT_KINDS = ["returning", "referral", "friend", "captain"];
 
   var TABLES = {
-    clients: ["token", "firstName", "referralCode", "quote", "referrals", "club", "contract"],
+    clients: ["token", "firstName", "referralCode", "quote", "referrals", "club", "contract", "pack"],
     events: ["time", "type", "data"],
     bookings: ["id", "clientToken", "status", "date", "startTime", "endTime", "people", "hours", "address", "total", "outOfHoursFee", "requestId",
       "discount", "amountDue", "bonusHours", "creditsApplied", "payLink", "paid",
@@ -132,6 +132,31 @@ var StoreLogic = (function () {
     };
   }
 
+  // A client's 4-Pack as Coffee Van publishes it (docs/4-pack-v2.md in the app repo): counts, dates, the standing morning and the saved
+  // set-up. Anything malformed is dropped rather than shown. No payment detail is ever published.
+  function cleanPack(p) {
+    if (!p || typeof p !== "object") return null;
+    var day = /^\d{4}-\d{2}-\d{2}$/;
+    var mornings = money(p.mornings), delivered = money(p.delivered), booked = money(p.booked);
+    if (mornings === null || mornings < 1 || delivered === null || booked === null || delivered < 0 || booked < 0) return null;
+    if (!day.test(String(p.validUntil))) return null;
+    var pausedDays = money(p.pausedDays) || 0;
+    var standing = null;
+    if (p.standing && typeof p.standing === "object" && Number(p.standing.weekday) >= 0 && Number(p.standing.weekday) <= 6 && /^\d{2}:\d{2}$/.test(String(p.standing.startTime))) {
+      standing = { weekday: Number(p.standing.weekday), startTime: String(p.standing.startTime), hours: money(p.standing.hours) || 2, address: clean(p.standing.address, 160) };
+    }
+    var months = (Array.isArray(p.standingMonths) ? p.standingMonths : []).filter(function (m) {
+      return m && /^\d{4}-\d{2}$/.test(String(m.month)) && day.test(String(m.date)) && ["proposed", "confirmed", "released"].indexOf(m.state) >= 0;
+    }).slice(0, 12).map(function (m) { return { month: String(m.month), date: String(m.date), state: String(m.state) }; });
+    var setup = null;
+    if (p.setup && typeof p.setup === "object") {
+      setup = { address: clean(p.setup.address, 160), people: money(p.setup.people) || 0, hours: money(p.setup.hours) || 0, startTime: /^\d{2}:\d{2}$/.test(String(p.setup.startTime)) ? String(p.setup.startTime) : "",
+        askFor: clean(p.setup.askFor, 80), access: clean(p.setup.access, 200), orderNotes: clean(p.setup.orderNotes, 300) };
+    }
+    return { mornings: mornings, delivered: delivered, booked: booked, left: Math.max(0, mornings - delivered), toBook: Math.max(0, mornings - delivered - booked), used: delivered, validUntil: String(p.validUntil), expiresAt: String(p.validUntil),
+      pausedDays: Math.min(42, pausedDays), standing: standing, standingMonths: months, setup: setup, invoiceNo: clean(p.invoiceNo, 24) };
+  }
+
   // The referral offer in numbers, published by Coffee Van so the page's words follow what Coffee Van gives.
   function cleanReward(r) {
     if (!r || typeof r !== "object") return null;
@@ -209,7 +234,7 @@ var StoreLogic = (function () {
     for (var i = 0; i < rows.length; i++) if (rows[i].token === token) return rows[i];
     var fresh = db.read("newclients");
     for (var j = 0; j < fresh.length; j++) {
-      if (fresh[j].token === token) return { token: fresh[j].token, firstName: fresh[j].firstName, referralCode: "", quote: "", referrals: "[]", club: "", contract: "" };
+      if (fresh[j].token === token) return { token: fresh[j].token, firstName: fresh[j].firstName, referralCode: "", quote: "", referrals: "[]", club: "", contract: "", pack: "" };
     }
     return null;
   }
@@ -288,6 +313,7 @@ var StoreLogic = (function () {
           referrals: JSON.stringify(cleanReferrals(c.referrals)),
           club: JSON.stringify(cleanClub(c.club)),
           contract: JSON.stringify(cleanContract(c.contract)),
+          pack: JSON.stringify(cleanPack(c.pack)),
         };
       });
       var bookings = (snapshot.bookings || []).map(function (b) {
@@ -389,6 +415,8 @@ var StoreLogic = (function () {
     try { referrals = client.referrals ? cleanReferrals(JSON.parse(client.referrals)) : []; } catch (e) { referrals = []; }
     var club = null;
     try { club = client.club ? cleanClub(JSON.parse(client.club)) : null; } catch (e) { club = null; }
+    var pack = null;
+    try { pack = client.pack ? cleanPack(JSON.parse(client.pack)) : null; } catch (e) { pack = null; }
     var contract = null;
     try { contract = client.contract ? cleanContract(JSON.parse(client.contract)) : null; } catch (e) { contract = null; }
     var bookings = db.read("bookings").filter(function (b) { return b.clientToken === token; }).map(function (b) {
@@ -451,9 +479,37 @@ var StoreLogic = (function () {
       bookings: bookings,
       pending: pendingItems,
       credits: credits,
-      pack: null,
+      pack: pack,
       contract: contract,
     };
+  }
+
+  // A 4-Pack holder (valid, with mornings left) may book with 12 hours' notice instead of 24, up to 2 such mornings a week across all packs
+  // (4-Pack v2, Sam 16 Nov 2026; packrules.js decides, this only asks). Without packrules.js in the project the 24 hours simply stay.
+  function activePackOf(client, now) {
+    var pack = null;
+    try { pack = client && client.pack ? cleanPack(JSON.parse(client.pack)) : null; } catch (e) { pack = null; }
+    if (!pack || pack.left < 1 || pack.validUntil < WanderRules.sydneyDate(now)) return null;
+    return pack;
+  }
+  function shortNoticeThisWeek(db, date) {
+    var week = WanderPackRules.weekStart(date), n = 0;
+    db.read("queue").forEach(function (q) {
+      if (q.kind !== "hold" && q.kind !== "change") return;
+      try {
+        var p = JSON.parse(q.payload), r = p.request || {}, outcome = (p.response || {}).outcome;
+        if (r.shortNotice === true && (outcome === "held" || outcome === "applied") && WanderPackRules.weekStart(r.date) === week) n += 1;
+      } catch (e) { /* an unreadable row counts for nobody */ }
+    });
+    return n;
+  }
+  function packNoticeFor(db, client, date, startTime, now) {
+    var none = { opts: undefined, shortNotice: false };
+    if (typeof WanderPackRules === "undefined" || !activePackOf(client, now)) return none;
+    var hoursAhead = WanderRules.noticeHours(now, date, startTime);
+    if (!(hoursAhead < WanderRules.NOTICE_HOURS)) return none;
+    var verdict = WanderPackRules.noticeAllowed({ hoursAhead: hoursAhead, isPackHolder: true, urgentThisWeek: shortNoticeThisWeek(db, date) });
+    return verdict.ok && verdict.outcome === "hold" ? { opts: { minNoticeHours: WanderPackRules.PACK_NOTICE_HOURS }, shortNotice: true } : none;
   }
 
   // One client request. Every path returns a response the page can show; nothing is an error screen.
@@ -495,7 +551,9 @@ var StoreLogic = (function () {
 
       if (kind === "hold") {
         var others = busyOn(db, fields.date);
-        var held = WanderRules.decideHold({ date: fields.date, startTime: fields.startTime, hours: fields.hours, travelKm: fields.travelKm }, others, asOf, now);
+        var holdNotice = packNoticeFor(db, client, fields.date, fields.startTime, now);
+        var held = WanderRules.decideHold({ date: fields.date, startTime: fields.startTime, hours: fields.hours, travelKm: fields.travelKm }, others, asOf, now, holdNotice.opts);
+        fields.shortNotice = holdNotice.shortNotice && held.decision === "held";
         var reply = WanderRules.replyWithinHours(now, fields.date, fields.startTime);
         var outcome = held.decision;
         response = { ok: true, outcome: outcome, replyWithinHours: reply, message: copyFor(outcome === "held" ? "held" : "requested", reply) };
@@ -516,7 +574,9 @@ var StoreLogic = (function () {
         var others2 = busyOn(db, fields.date).filter(function (b) {
           return !(b.date === booking.date && b.startTime === booking.startTime);
         });
-        var change = WanderRules.decideChange(booking, { date: fields.date, startTime: fields.startTime, hours: fields.hours, travelKm: fields.travelKm }, others2, asOf, now);
+        var changeNotice = packNoticeFor(db, client, fields.date, fields.startTime, now);
+        var change = WanderRules.decideChange(booking, { date: fields.date, startTime: fields.startTime, hours: fields.hours, travelKm: fields.travelKm }, others2, asOf, now, changeNotice.opts);
+        fields.shortNotice = changeNotice.shortNotice && change.decision === "applied";
         var reply2 = WanderRules.replyWithinHours(now, fields.date, fields.startTime);
         response = change.decision === "applied"
           ? { ok: true, outcome: "applied", replyWithinHours: reply2, bookingId: booking.id, message: copyFor("applied", reply2, fields.startTime) }

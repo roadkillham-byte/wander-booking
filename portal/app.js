@@ -78,7 +78,7 @@
     var raw = location.hash.replace(/^#/, "");
     var params = new URLSearchParams(raw);
     state.k = params.get("k");
-    state.route = { v: params.get("v") || "home", b: params.get("b") || "" };
+    state.route = { v: params.get("v") || "home", b: params.get("b") || "", setup: params.get("setup") === "1" };
   }
   function go(v, extra) {
     var params = new URLSearchParams();
@@ -423,10 +423,33 @@
   // Same words as the quote and confirmation emails (Sam, 15 Nov 2026).
   var PACK_TERMS = "Terms: the 4-Pack does not include photography, and we do not use photos of your people or premises in our advertising unless you agree to it first.";
 
+  var WEEKDAYS = ["Sundays", "Mondays", "Tuesdays", "Wednesdays", "Thursdays", "Fridays", "Saturdays"];
+  var STANDING_STATE = { confirmed: "confirmed", released: "released back to everyone" };
+  // The standing morning and the saved set-up, as Coffee Van published them. Wording stays true: a "proposed" date is held, not yet confirmed.
+  function packExtrasHtml(pack) {
+    var out = "";
+    if (pack.standing) {
+      out += "<p>Your standing morning: " + esc(WEEKDAYS[pack.standing.weekday]) + " at " + esc(clock(pack.standing.startTime)) + ", " + esc(pack.standing.hours) + " hours.</p>";
+      if (pack.standingMonths && pack.standingMonths.length) {
+        out += '<ul class="standing">' + pack.standingMonths.map(function (m) {
+          var words = m.state === "proposed" ? "held for you. Tell us by " + dayName(WanderRules.addDays(m.date, -7)) + " to keep it" : (STANDING_STATE[m.state] || m.state);
+          return "<li>" + esc(dayName(m.date)) + ": " + esc(words) + "</li>";
+        }).join("") + "</ul>";
+      }
+    }
+    if (pack.pausedDays) out += "<p>Paused so far: " + esc(pack.pausedDays) + " of 42 days. Your valid-until date has moved by that long.</p>";
+    if (pack.setup && pack.left > 0) {
+      out += '<p><a class="go" href="#k=' + encodeURIComponent(state.k) + '&v=pick&setup=1">Book the next one, same set-up</a></p>' +
+        '<p class="note">' + esc(pack.setup.people) + " people, " + esc(pack.setup.hours) + " hours at " + esc(clock(pack.setup.startTime)) + (pack.setup.address ? ", " + esc(pack.setup.address) : "") + ".</p>";
+    }
+    out += '<p class="note">Booking at the last minute? A 4-Pack morning can be booked with half a day\'s notice (two a week, when we have the room). To pause (up to 6 weeks) or change your standing morning, ring us.</p>';
+    return out;
+  }
+
   function renderPack() {
     var pack = state.session && state.session.pack;
     var inner = '<section class="rise d1"><h2 class="rule">My 4-Pack</h2>' +
-      (pack ? "<p>" + esc(pack.left) + " mornings left of " + esc(pack.mornings) + ". Valid until " + esc(dayName(pack.expiresAt)) + ".</p>"
+      (pack ? "<p>" + esc(pack.left) + " mornings left of " + esc(pack.mornings) + ". Valid until " + esc(dayName(pack.expiresAt)) + ".</p>" + packExtrasHtml(pack)
         : "<p>You do not have a 4-Pack yet. Four mornings, paid up front, for the price of four singles.</p>" +
           '<p><a href="#k=' + encodeURIComponent(state.k) + '&v=pick">Pick a morning first</a>, then we offer the 4-Pack.</p>') +
       '<p class="note pack-terms">' + esc(PACK_TERMS) + "</p></section>" + contractOfferHtml();
@@ -697,7 +720,7 @@
       btn.addEventListener("click", function () {
         if (state.busy) return;
         track("cta", { v: "enquiry-" + btn.getAttribute("data-enquiry") });
-        send({ k: state.k, kind: "enquiry", requestId: uid(), enquiry: btn.getAttribute("data-enquiry") }, function (resp) { showPage(renderEnquirySent(resp)); });
+        send({ k: state.k, kind: "enquiry", requestId: uid(), enquiry: btn.getAttribute("data-enquiry") }, function (resp) { state.notice = null; showPage(renderEnquirySent(resp)); }); // the page itself says it: no second notice
       });
     });
     var no = document.getElementById("pack-no");
@@ -837,6 +860,8 @@
     var html;
     if (v === "pick" || v === "change") {
       var from = state.session.quote || lastCompleted();
+      var packSetup = state.route.setup && state.session.pack && state.session.pack.setup;
+      if (packSetup && packSetup.startTime && packSetup.people && packSetup.hours) from = { date: "", startTime: packSetup.startTime, people: packSetup.people, hours: packSetup.hours, address: packSetup.address };
       var seed = from ? { date: state.session.quote ? from.date : "", startTime: from.startTime || "09:00", people: from.people, hours: from.hours, address: from.address || "" }
         : { date: "", startTime: "09:00", people: 20, hours: 3, address: "" };
       if (!state.session.quote && from) seed = seedFrom(from);

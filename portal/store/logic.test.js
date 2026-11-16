@@ -2,6 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const WanderRules = require("../rules.js");
 globalThis.WanderRules = WanderRules;
+globalThis.WanderPackRules = require("../packrules.js");
 const S = require("./logic.js");
 
 const APP = "APP-TOKEN-0123456789abcdef";
@@ -1030,4 +1031,68 @@ test("an enquiry (paying ahead, a photographer) is a request for Sam to ring, qu
   assert.equal(JSON.parse(q[0].payload).request.enquiry, "contract-6");
   assert.equal(S.request(db, { k, kind: "enquiry", requestId: "enq-2", enquiry: "free-money" }, NOW).error, "bad-enquiry");
   assert.equal(S.request(db, { k, kind: "enquiry", requestId: "enq-3", enquiry: "photographer" }, NOW).outcome, "requested");
+});
+
+// ---- 4-Pack v2 (Sam, 16 Nov 2026): a pack holder books with 12 hours' notice, two such mornings a week ----
+
+const packFor = (over = {}) => ({
+  mornings: 4, delivered: 1, booked: 0, validUntil: "2027-11-20", pausedDays: 0, invoiceNo: "4P-20261101-1",
+  standing: { weekday: 2, startTime: "09:00", hours: 2, address: "1 Main Street, Tea Gardens" },
+  standingMonths: [{ month: "2026-12", date: "2026-12-15", state: "proposed" }, { month: "2027-01", date: "2027-01-19", state: "released" }],
+  setup: { address: "1 Main Street, Tea Gardens", people: 20, hours: 2, startTime: "09:00", askFor: "Dana", access: "Back gate", orderNotes: "Two oat flat whites" },
+  ...over,
+});
+const withPack = (db, pack) => publish(db, { clients: [{ token: ALEX, firstName: "Alex", referralCode: "K7M2-QXTP", pack }, { token: SAM, firstName: "Sam", referralCode: "H4BC-7WDR" }], busy: [], bookings: [], credits: [] });
+const NOW_NIGHT = "2026-12-01T20:00:00+11:00"; // 8 pm: a 9 am start tomorrow is 13 hours away
+const nearHold = (token, requestId, date, startTime = "09:00", extra = {}) => ({ k: token, kind: "hold", requestId, date, startTime, people: 20, hours: 2, address: "3 Lake Road, Tea Gardens", suburb: "tea-gardens", shownTotal: 458, shownFee: 0, ...extra });
+
+test("a published pack reaches its own client's page with counts, dates, the standing morning and the set-up", () => {
+  const db = makeDb();
+  withPack(db, packFor());
+  const p = S.session(db, ALEX, NOW).pack;
+  assert.equal(p.mornings, 4);
+  assert.equal(p.left, 3);
+  assert.equal(p.expiresAt, "2027-11-20");
+  assert.equal(p.standing.weekday, 2);
+  assert.deepEqual(p.standingMonths.map((m) => m.state), ["proposed", "released"]);
+  assert.equal(p.setup.askFor, "Dana");
+  assert.equal(S.session(db, SAM, NOW).pack, null);
+});
+
+test("a malformed pack is dropped, not shown", () => {
+  const db = makeDb();
+  for (const bad of [packFor({ mornings: 0 }), packFor({ validUntil: "next year" }), packFor({ delivered: -1 }), "x"]) {
+    withPack(db, bad);
+    assert.equal(S.session(db, ALEX, NOW).pack, null);
+  }
+});
+
+test("a pack holder is held 13 hours ahead; a single client at the same time is requested", () => {
+  const db = makeDb();
+  withPack(db, packFor());
+  const asOf = { asOf: "2026-12-01T19:30:00+11:00" };
+  publish(db, { ...asOf, clients: [{ token: ALEX, firstName: "Alex", referralCode: "K7M2-QXTP", pack: packFor() }, { token: SAM, firstName: "Sam", referralCode: "H4BC-7WDR" }], busy: [], bookings: [], credits: [] });
+  const mine = S.request(db, nearHold(ALEX, "p-1", "2026-12-02"), NOW_NIGHT);
+  assert.equal(mine.outcome, "held");
+  const q = db.tables.queue.filter((x) => x.id === "p-1")[0];
+  assert.equal(JSON.parse(q.payload).request.shortNotice, true);
+  const single = S.request(db, nearHold(SAM, "s-1", "2026-12-02", "13:00"), NOW_NIGHT);
+  assert.equal(single.outcome, "requested");
+});
+
+test("only two short-notice mornings a week across all packs, then it is a request", () => {
+  const db = makeDb();
+  publish(db, { asOf: "2026-12-01T19:30:00+11:00", clients: [{ token: ALEX, firstName: "Alex", referralCode: "K7M2-QXTP", pack: packFor() }, { token: SAM, firstName: "Sam", referralCode: "H4BC-7WDR", pack: packFor() }], busy: [], bookings: [], credits: [] });
+  assert.equal(S.request(db, nearHold(ALEX, "w-1", "2026-12-02", "09:00"), NOW_NIGHT).outcome, "held");
+  assert.equal(S.request(db, nearHold(SAM, "w-2", "2026-12-03", "07:30"), "2026-12-01T20:30:00+11:00").outcome, "held");
+  const third = S.request(db, nearHold(ALEX, "w-3", "2026-12-04", "07:00"), "2026-12-02T18:00:00+11:00");
+  assert.equal(third.outcome, "requested");
+});
+
+test("an expired pack, a pack with nothing left, or 11 hours' notice is still a request", () => {
+  for (const [label, pack, start] of [["expired", packFor({ validUntil: "2026-11-30" }), "09:00"], ["used up", packFor({ delivered: 4 }), "09:00"], ["11 hours", packFor(), "07:00"]]) {
+    const db = makeDb();
+    publish(db, { asOf: "2026-12-01T19:30:00+11:00", clients: [{ token: ALEX, firstName: "Alex", referralCode: "K7M2-QXTP", pack }], busy: [], bookings: [], credits: [] });
+    assert.equal(S.request(db, nearHold(ALEX, "x-" + label, "2026-12-02", start), NOW_NIGHT).outcome, "requested", label);
+  }
 });
