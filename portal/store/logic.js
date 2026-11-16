@@ -265,6 +265,8 @@ var StoreLogic = (function () {
     if (outcome === "applied") return "Done. Your morning now starts at " + startTime + ".";
     if (outcome === "cancel") return "We have your cancellation. We will confirm your credit within " + replyWithinHours + " hours.";
     if (outcome === "pack") return "Requested: we will confirm your first morning within " + replyWithinHours + " hours. Nothing is charged.";
+    if (outcome === "standing") return "We appreciate you! Your standing morning is kept, and we will confirm it with you shortly.";
+    if (outcome === "pause") return "We appreciate you telling us! Your pause is noted and your valid-until date will move with it. We will confirm within " + replyWithinHours + " hours.";
     if (outcome === "enquiry") return "We appreciate you asking! We'll ring you within " + replyWithinHours + " hours. Nothing is charged.";
     if (outcome === "call") return "Requested: we will ring you within " + replyWithinHours + " hours.";
     return "Requested: we will text you within " + replyWithinHours + " hours to confirm this.";
@@ -539,6 +541,22 @@ var StoreLogic = (function () {
         fields = { bookingId: clean(body.bookingId, 80) };
       } else if (kind === "call") {
         fields = { when: clean(body.when, 80), note: clean(body.note, 300) };
+      } else if (kind === "standing" || kind === "pause") {
+        // A 4-Pack holder keeps a held standing morning, or pauses their pack (4-Pack v2). The store checks it against the pack Coffee Van
+        // published, with the same rules (packrules.js); Coffee Van applies it and tells Sam. A pause the rules refuse is not queued.
+        var packNow = activePackOf(client, now);
+        if (!packNow || typeof WanderPackRules === "undefined") return { ok: false, error: "not-found" };
+        if (kind === "standing") {
+          var month = clean(body.month, 7);
+          var held2 = packNow.standingMonths.filter(function (m) { return m.month === month && m.state === "proposed"; })[0];
+          if (!held2) return { ok: false, error: "not-offered" };
+          fields = { op: "confirm", month: month };
+        } else {
+          var from = clean(body.from, 10), days = Number(body.days);
+          var verdict = WanderPackRules.pauseAllowed({ pausedDaysSoFar: packNow.pausedDays, requestDays: days, noticeDays: WanderPackRules.daysBetween(WanderRules.sydneyDate(now), from) });
+          if (!verdict.ok) return { ok: true, outcome: "declined", replyWithinHours: 24, message: verdict.reason + " Give us a ring and we will sort it out." };
+          fields = { from: from, days: days };
+        }
       } else if (kind === "enquiry") {
         // One generic "ask us about it" request, priced by nobody here: Sam rings the client. Today: paying ahead for 3, 6 or 12 months,
         // and (once its hourly rate is known) a photographer. A new kind of enquiry is one more entry in ENQUIRIES.
@@ -601,6 +619,9 @@ var StoreLogic = (function () {
         if (!target) return { ok: false, error: "not-found" };
         var reply3 = WanderRules.replyWithinHours(now, target.date, target.startTime);
         response = { ok: true, outcome: "requested", replyWithinHours: reply3, bookingId: target.id, message: copyFor("cancel", reply3) };
+        fields.decision = "requested";
+      } else if (kind === "standing" || kind === "pause") {
+        response = { ok: true, outcome: "requested", replyWithinHours: 24, message: copyFor(kind, 24) };
         fields.decision = "requested";
       } else if (kind === "enquiry") {
         response = { ok: true, outcome: "requested", replyWithinHours: 24, message: copyFor("enquiry", 24) };
