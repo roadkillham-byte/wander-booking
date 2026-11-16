@@ -265,7 +265,7 @@ var StoreLogic = (function () {
     if (outcome === "applied") return "Done. Your morning now starts at " + startTime + ".";
     if (outcome === "cancel") return "We have your cancellation. We will confirm your credit within " + replyWithinHours + " hours.";
     if (outcome === "pack") return "Requested: we will confirm your first morning within " + replyWithinHours + " hours. Nothing is charged.";
-    if (outcome === "enquiry") return "Thanks, we have your question. Sam will ring you within " + replyWithinHours + " hours. Nothing is charged.";
+    if (outcome === "enquiry") return "We appreciate you asking! We'll ring you within " + replyWithinHours + " hours. Nothing is charged.";
     if (outcome === "call") return "Requested: we will ring you within " + replyWithinHours + " hours.";
     return "Requested: we will text you within " + replyWithinHours + " hours to confirm this.";
   }

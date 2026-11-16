@@ -437,7 +437,7 @@
         }).join("") + "</ul>";
       }
     }
-    if (pack.pausedDays) out += "<p>Paused so far: " + esc(pack.pausedDays) + " of 42 days. Your valid-until date has moved by that long.</p>";
+    if (pack.pausedDays) out += "<p>You\'ve paused " + esc(pack.pausedDays) + " of your 42 days, and your valid-until date has moved with it.</p>";
     if (pack.setup && pack.left > 0) {
       out += '<p><a class="go" href="#k=' + encodeURIComponent(state.k) + '&v=pick&setup=1">Book the next one, same set-up</a></p>' +
         '<p class="note">' + esc(pack.setup.people) + " people, " + esc(pack.setup.hours) + " hours at " + esc(clock(pack.setup.startTime)) + (pack.setup.address ? ", " + esc(pack.setup.address) : "") + ".</p>";
@@ -471,17 +471,17 @@
       var total = morning ? morning * o.mornings : null;
       return "<li><strong>" + o.months + " months</strong>: " + o.mornings + " mornings" +
         (total ? " at " + money(morning) + " each, " + money(total) + " in all, or " + money(total / o.months) + " a month" : "") +
-        ". Paid by " + o.how + '. <button type="button" class="go ghost" data-enquiry="' + o.key + '">Ask about this</button></li>';
+        ". Paid by " + o.how + '. <button type="button" class="go ghost" data-enquiry="' + o.key + '">Ask us about this</button></li>';
     }).join("");
     return '<section class="rise d2"><h2 class="rule">Regular mornings? Pay ahead</h2>' +
-      "<p>Four mornings a month for a term, at the single-morning price, with free service hours on top. Book as many of your paid mornings as you like, any time in the term. Pause up to 6 weeks. Unused mornings are refunded.</p>" +
+      "<p>Four mornings a month for a term, each at the single-morning price, with free service hours on top. Book as many of your paid mornings as you like, any time in the term. You can pause for up to 6 weeks, and any you don\'t use are refunded.</p>" +
       '<ul class="contract-offers">' + rows + "</ul>" +
-      '<p class="note">Nothing is charged here. Ask, and Sam will ring you to set it up.</p></section>';
+      '<p class="note">Nothing is charged here. Ask and we\'ll ring you to set it up.</p></section>';
   }
 
   function renderEnquirySent(resp) {
-    var inner = '<section class="rise d1"><h2 class="rule">Thank you</h2><p>' + esc((resp && resp.message) || "We have your question. Sam will ring you within 24 hours. Nothing is charged.") + "</p></section>";
-    return shell(inner, { nav: true, greet: "Thanks, " + firstName() + "." });
+    var inner = '<section class="rise d1"><h2 class="rule">We appreciate you asking!</h2><p>' + esc((resp && resp.message) || "We\'ll ring you within 24 hours. Nothing is charged.") + "</p></section>";
+    return shell(inner, { nav: true, greet: "We appreciate you, " + firstName() + "!" });
   }
 
   function renderContract() {
@@ -495,9 +495,8 @@
       inner = '<section class="rise d1"><h2 class="rule">My contract</h2>' +
         "<p><strong>" + esc(c.left) + " mornings left</strong> of " + esc(c.mornings) + ", " + esc(c.termMonths) + " months from " + esc(dayName(c.startDate)) + " to " + esc(dayName(c.endDate)) +
         (c.status === "cancelled" ? ". This contract has ended." : c.status === "complete" ? ". All mornings delivered." : ".") + "</p>" +
-        "<p>Book as many of your paid mornings as you like, any time in the term.</p>" +
-        (c.freeHours > 0 ? "<p>Free service hours: " + esc(c.freeHours) + (c.freeHoursUnlocked ? (c.freeHoursUsed ? " (" + esc(c.freeHoursUsed) + " used)" : ", ready to use.") : ", unlocked after " + esc(halfway) + " mornings.") + "</p>" : "") +
-        (c.pausedWeeks ? "<p>Paused so far: " + esc(c.pausedWeeks) + " of 6 weeks.</p>" : "") +
+                (c.freeHours > 0 ? "<p>Free service hours: " + esc(c.freeHours) + (c.freeHoursUnlocked ? (c.freeHoursUsed ? " (" + esc(c.freeHoursUsed) + " used)" : ", ready to use.") : ", unlocked after " + esc(halfway) + " mornings.") + "</p>" : "") +
+        (c.pausedWeeks ? "<p>You\'ve paused " + esc(c.pausedWeeks) + " of your 6 weeks.</p>" : "") +
         (c.nextInstalment ? "<p>Next payment: " + money(c.nextInstalment.amount) + " due " + esc(dayName(c.nextInstalment.dueDate)) + ".</p>" : "") +
         (c.status === "active" ? link : "") +
         '<p class="note">To pause, change or ask anything, ring us on ' + esc(window.WANDER_PHONE_DISPLAY || "") + ".</p></section>";

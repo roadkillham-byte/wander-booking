@@ -1023,7 +1023,7 @@ test("an enquiry (paying ahead, a photographer) is a request for Sam to ring, qu
   const r = S.request(db, { k, kind: "enquiry", requestId: "enq-1", enquiry: "contract-6", note: "Twenty staff, Fridays" }, NOW);
   assert.equal(r.ok, true);
   assert.equal(r.outcome, "requested");
-  assert.match(r.message, /Sam will ring you within 24 hours\. Nothing is charged/);
+  assert.match(r.message, /We'll ring you within 24 hours\. Nothing is charged/);
   const again = S.request(db, { k, kind: "enquiry", requestId: "enq-1", enquiry: "contract-6" }, NOW);
   assert.deepEqual(again, r);
   const q = db.tables.queue.filter((x) => x.kind === "enquiry");

@@ -516,7 +516,7 @@ await check("My 4-Pack offers paying ahead, and an enquiry reaches Sam with noth
   await page.waitForTimeout(1500);
   await page.screenshot({ path: shots + "/dash-contract-offer.png", fullPage: true });
   await page.click('button[data-enquiry="contract-6"]');
-  await page.waitForFunction(() => document.getElementById("app").innerText.includes("Sam will ring you"));
+  await page.waitForFunction(() => document.getElementById("app").innerText.includes("ring you within 24 hours"));
   if (!(await page.innerText("#app")).includes("Nothing is charged")) throw new Error("no no-charge line");
   const queued = db.tables.queue.filter((x) => x.kind === "enquiry");
   if (queued.length !== 1 || JSON.parse(queued[0].payload).request.enquiry !== "contract-6") throw new Error("enquiry not queued once");
@@ -530,6 +530,7 @@ await check("My contract shows mornings left, free hours, the next payment, and 
   if (!/Next payment: \$1,832 due /.test(t)) throw new Error("no next payment: " + t);
   if (!t.includes("Book a morning")) throw new Error("no booking link");
   if (!t.includes("My contract")) throw new Error("no nav link");
+  if (/Sam will ring/.test(t)) throw new Error("third person in client copy");
   await noOverflowAndNoJunk("My contract");
   await page.waitForTimeout(1500);
   await page.screenshot({ path: shots + "/dash-contract.png", fullPage: true });

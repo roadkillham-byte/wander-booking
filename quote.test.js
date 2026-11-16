@@ -65,8 +65,9 @@ test("the booking page offers paying ahead as an enquiry: three terms, bank tran
   const html = fs.readFileSync(__dirname + "/index.html", "utf8");
   assert.match(html, /value="Prepaid contract"/);
   assert.match(html, /paid by bank transfer/i);
+  assert.doesNotMatch(html, /Sam will ring/i); // client copy says "we"
   assert.match(html, /Nothing is charged online/);
-  assert.match(html, /Pause up to 6 weeks/);
+  assert.match(html, /pause for up to 6 weeks/);
   assert.match(html, /"Prepaid contract " \+ field\("contract-term"\)\.value \+ " months"/);
   // the contract wording follows the same rule as the 4-Pack: no "bonus" word, no thrown-in extras
   assert.doesNotMatch(html, /bonus/i);
