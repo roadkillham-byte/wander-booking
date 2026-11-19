@@ -158,7 +158,7 @@ details.packwrap .pack{margin-top:6px}
       <label id="pkg-label">One morning or four?</label>
       <div class="pkg" role="radiogroup" aria-labelledby="pkg-label">
         <label><input type="radio" name="package" value="Single morning" checked><span>Single morning</span></label>
-        <label><input type="radio" name="package" value="Office Club 4-Pack"><span>4-Pack, best value</span></label>
+        <label><input type="radio" name="package" value="Office Club 4-Pack"><span>4-Pack, price locked 12 months</span></label>
         <label><input type="radio" name="package" value="Prepaid contract"><span>Pay ahead, 3 to 12 months</span></label>
       </div>
       <div id="contract-term-wrap" hidden>
@@ -177,9 +177,9 @@ details.packwrap .pack{margin-top:6px}
       <p class="perhead" id="perhead"></p>
       <div id="anchor" hidden></div>
       <p class="inc">Any bowl · Unlimited drinks · Set-up included</p>
-      <details class="packwrap"><summary>Four mornings? See the Office Club 4-Pack</summary>
+      <details class="packwrap"><summary>Four mornings? See the 4-Pack</summary>
       <div class="pack" id="pack">
-        <div class="packhead"><strong>Office Club 4-Pack</strong> <span class="badge">best value</span></div>
+        <div class="packhead"><strong>4-Pack</strong> <span class="badge">price locked 12 months</span></div>
         <table class="cmp" aria-label="Four single mornings compared with the Prepaid 4-Pack">
           <thead><tr><th></th><th>Four single mornings</th><th>Prepaid 4-Pack</th></tr></thead>
           <tbody>
@@ -224,7 +224,7 @@ details.packwrap .pack{margin-top:6px}
       <label class="check"><input type="checkbox" id="offers"> Send me offers and credits. Unsubscribe any time.</label>
       <div id="heard-wrap" hidden>
         <label for="heard">How did you hear about us? (optional)</label>
-        <select id="heard" name="heard"><option value="">Choose one</option><option value="van">Saw the van</option><option value="flyer">A flyer</option><option value="instagram">Instagram</option><option value="friend">A friend</option><option value="search">Searching online</option><option value="other">Something else</option></select>
+        <select id="heard" name="heard"><option value="">Choose one</option><option value="van">Saw the van</option><option value="flyer">A flyer</option><option value="instagram">Instagram</option><option value="friend">A friend</option><option value="search">Searching online</option><option value="website">The Wander website</option><option value="other">Something else</option></select>
       </div>
       <div class="hp" aria-hidden="true"><label>Leave this empty<input name="website" id="website" tabindex="-1" autocomplete="off"></label></div>
       <button type="submit" class="go" id="go">Get my price and hold my date</button>
@@ -240,7 +240,7 @@ details.packwrap .pack{margin-top:6px}
           <li>Any bowl you like, one each</li>
           <li>Unlimited coffee, tea and hot chocolate</li>
           <li>Set-up included</li>
-          <li>A free babyccino for every child</li>
+          <li>A free babyccino for every child under 12</li>
           <li>No preordering. Just people and hours.</li>
         </ul>
       </section>
@@ -300,6 +300,14 @@ document.getElementById("heard-wrap").hidden = !!source || !!referralCode;
 const { quote, packPrice, contractTerms } = window.WanderQuote;
 const peopleEl = document.getElementById("people"), msg = document.getElementById("msg"), go = document.getElementById("go");
 const hours = () => Number(document.querySelector('input[name="hours"]:checked').value);
+// Numbers from the Wander website's price finder (?people=45&hours=4): start the form there, so nobody types them twice.
+// Whole numbers in range only (1 to 500 people, 2 to 6 hours); anything else keeps the defaults.
+(() => { try {
+  const q = new URLSearchParams(location.search), p = q.get("people") || "", h = q.get("hours") || "";
+  if (/^\d{1,3}$/.test(p) && +p >= 1 && +p <= 500) peopleEl.value = String(+p);
+  const r = /^[2-6]$/.test(h) && document.querySelector(`input[name="hours"][value="${h}"]`);
+  if (r) r.checked = true;
+} catch (err) {} })();
 const money = (n) => "$" + n.toLocaleString("en-AU");
 const money2 = (v) => "$" + v.toFixed(2);
 // Fair comparisons, from real figures Sam keeps in config.js (WANDER_ANCHORS). Each is one line of totals for this visitor's
