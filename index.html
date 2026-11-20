@@ -8,7 +8,7 @@ if (/[#&]k=[A-Za-z0-9_-]{8,}/.test(location.hash)) location.replace("portal/" + 
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Book Wander Coffee Van</title>
-<meta name="description" content="Coffee van for your event. See your price now, then send your booking request. We call to lock it in.">
+<meta name="description" content="Coffee van for your weekend event. See your price now, then send your booking request. We call to lock it in.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
@@ -113,7 +113,7 @@ section.good details p{margin:8px 0 0}
 .chip{width:auto;margin:0;padding:12px 18px;font-family:var(--hand);font-size:26px;line-height:1;color:var(--forest);background:#fff;border:2px solid var(--line);border-radius:999px;box-shadow:none;cursor:pointer}
 .chip[aria-checked="true"]{background:var(--forest);border-color:var(--forest);color:var(--cream)}
 #start-note{font-size:19px;font-weight:700;color:var(--forest);margin:4px 0 0}
-#start-note.low{color:var(--orange)}
+#start-note.low,#date-note.low{color:var(--orange)}
 .perhead{margin:6px 0 0;font-size:18px;font-weight:700;color:var(--forest)}
 .anchor{margin:4px 0 0;font-size:17px;color:var(--ink)}
 .case{margin:0 0 14px;padding:12px 14px;border:2px solid var(--forest);border-radius:12px;background:#fff9ef}
@@ -135,8 +135,8 @@ details.packwrap .pack{margin-top:6px}
 <header>
   <div class="wrap">
     <div class="mark rise"><img src="assets/wander-logo.png" alt="Wander" width="700" height="237"></div>
-    <h1 class="rise d1">A morning your people <em>talk about.</em></h1>
-    <p class="lede rise d2">Pick people and hours. See your price. We handle the rest.</p>
+    <h1 class="rise d1">A weekend morning your people <em>talk about.</em></h1>
+    <p class="lede rise d2">Pick people and hours. See your price. We handle the rest. Saturdays and Sundays are our sure thing.</p>
   </div>
 </header>
 
@@ -215,6 +215,7 @@ details.packwrap .pack{margin-top:6px}
         <div><label for="email">Email</label><input id="email" name="email" type="email" autocomplete="email" maxlength="120" required></div>
         <div><label for="date">Date of your event</label><input id="date" name="date" type="date" required></div>
       </div>
+      <p class="fine" id="date-note">Saturdays and Sundays are our sure thing. A weekday? Pick it and we'll ring to see what we can do.</p>
       <label id="start-label">Start time</label>
       <p id="start-note" hidden></p>
       <div class="chips" id="start-chips" role="radiogroup" aria-labelledby="start-label"><span class="fine">Pick a date first</span></div>
@@ -486,6 +487,14 @@ async function refreshStartTimes() {
   if (note_) { note.textContent = note_; note.className = /Only|full/.test(note_) ? "low" : ""; note.hidden = false; }
   renderChips(times);
 }
+// Saturdays and Sundays are the days we can promise (Sam works weekdays elsewhere); a weekday is a request we ring about.
+function dayNote(date) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return { text: "Saturdays and Sundays are our sure thing. A weekday? Pick it and we'll ring to see what we can do.", weekday: false };
+  const d = new Date(date + "T12:00:00").getDay();
+  return d === 0 || d === 6 ? { text: "A weekend date: we'll do our best to hold it for you.", weekday: false }
+    : { text: "A weekday: we can't promise it yet. Send it and we'll ring to see what we can do.", weekday: true };
+}
+field("date").addEventListener("change", () => { const n = dayNote(field("date").value), el = field("date-note"); el.textContent = n.text; el.className = n.weekday ? "fine low" : "fine"; });
 field("date").addEventListener("change", refreshStartTimes);
 ensureOpenDays(hours());
 document.querySelectorAll('input[name="hours"]').forEach((el) => el.addEventListener("change", () => { openHoursFor = 0; ensureOpenDays(hours()); refreshStartTimes(); }));

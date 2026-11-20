@@ -61,3 +61,13 @@ test("tap.html offers every rating the private feedback code, separate from the 
   const cfg = fs.readFileSync(__dirname + "/config.js", "utf8");
   assert.ok(/window\.WANDER_FEEDBACK_URL = "https:\/\/docs\.google\.com\/forms\/d\/e\/[A-Za-z0-9_-]+\/viewform";/.test(cfg));
 });
+
+test("booking page is for weekend mornings: headline, lede and a date note that tells a weekday from a weekend", () => {
+  assert.ok(/<h1[^>]*>A weekend morning your people/.test(html) && /Saturdays and Sundays are our sure thing\./.test(html));
+  assert.ok(/id="date-note"/.test(html) && /A weekday: we can't promise it yet/.test(html) && /A weekend date: we'll do our best to hold it/.test(html));
+  const dayNote = new Function("return " + html.slice(html.indexOf("function dayNote"), html.indexOf('field("date").addEventListener("change", () =>')).trim().replace(/^function dayNote/, "function"))();
+  assert.equal(dayNote("2026-11-21").weekday, false, "Saturday");
+  assert.equal(dayNote("2026-11-22").weekday, false, "Sunday");
+  assert.equal(dayNote("2026-11-23").weekday, true, "Monday");
+  assert.equal(dayNote("").weekday, false, "no date yet");
+});
