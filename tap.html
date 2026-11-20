@@ -18,14 +18,11 @@
     t.track("tap", { q: hit.q, a: hit.a, r: r }); t.flush();
     var outcome = WanderLinks.ratingOutcome(hit.a), review = window.WANDER_REVIEW_URL || "";
     var body = "<h1>Thanks, got it</h1>";
-    if (outcome === "good") {
-      body += "<p>We appreciate you!</p>";
-      if (/^https:\/\//.test(review)) body += "<p>If you enjoyed it, a review helps us a lot: <a href='" + esc(review) + "'>leave a review</a></p>";
-    } else if (outcome === "low") {
-      body += "<p>We're sorry it fell short, and we'd like to hear more. Reply to the email and we'll read every word.</p>";
-    } else {
-      body += "<p>We appreciate you telling us. Reply to the email if there is anything we could do better.</p>";
-    }
+    if (outcome === "good") body += "<p>We appreciate you!</p>";
+    else if (outcome === "low") body += "<p>We're sorry it fell short, and we'd like to hear more. Reply to the email and we'll read every word.</p>";
+    else body += "<p>We appreciate you telling us. Reply to the email if there is anything we could do better.</p>";
+    // The same invitation for every rating: asking only the happy ones for a public review is review gating, which Google prohibits.
+    if (/^https:\/\//.test(review)) body += "<p>Whatever you thought, you're welcome to share it publicly: <a href='" + esc(review) + "'>leave a review</a></p>";
     body += "<p><a class='btn' href='" + esc(window.WANDER_LINKS.page) + "'>Back to Wander</a></p>";
     main.innerHTML = body;
     return;

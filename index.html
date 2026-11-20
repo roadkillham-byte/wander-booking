@@ -158,8 +158,8 @@ details.packwrap .pack{margin-top:6px}
       <label id="pkg-label">One morning or four?</label>
       <div class="pkg" role="radiogroup" aria-labelledby="pkg-label">
         <label><input type="radio" name="package" value="Single morning" checked><span>Single morning</span></label>
-        <label><input type="radio" name="package" value="Office Club 4-Pack"><span>4-Pack, price locked 12 months</span></label>
-        <label><input type="radio" name="package" value="Prepaid contract"><span>Pay ahead, 3 to 12 months</span></label>
+        <label><input type="radio" name="package" value="Office Club 4-Pack"><span>Office Club: four mornings, price locked 12 months</span></label>
+        <label hidden><input type="radio" name="package" value="Prepaid contract"><span>Pay ahead, 3 to 12 months</span></label>
       </div>
       <div id="contract-term-wrap" hidden>
         <label for="contract-term">How long?</label>
@@ -174,14 +174,15 @@ details.packwrap .pack{margin-top:6px}
         <div class="amt" id="amt">$619</div>
         <div class="sub" id="sub">20 people, 3 hours, including GST</div>
       </div>
+      <div id="photo-wrap" hidden><label class="check"><input type="checkbox" id="photographer"> <span>Add a photographer for the whole morning <b id="photo-price"></b></span></label><p class="fine">Photos of your morning. We confirm the details when we ring you.</p></div>
       <p class="perhead" id="perhead"></p>
       <div id="anchor" hidden></div>
       <p class="inc">Any bowl · Unlimited drinks · Set-up included</p>
-      <details class="packwrap"><summary>Four mornings? See the 4-Pack</summary>
+      <details class="packwrap"><summary>Four mornings? See the Office Club</summary>
       <div class="pack" id="pack">
-        <div class="packhead"><strong>4-Pack</strong> <span class="badge">price locked 12 months</span></div>
-        <table class="cmp" aria-label="Four single mornings compared with the Prepaid 4-Pack">
-          <thead><tr><th></th><th>Four single mornings</th><th>Prepaid 4-Pack</th></tr></thead>
+        <div class="packhead"><strong>Office Club</strong> <span class="badge">price locked 12 months</span></div>
+        <table class="cmp" aria-label="Four single mornings compared with the Office Club">
+          <thead><tr><th></th><th>Four single mornings</th><th>Office Club</th></tr></thead>
           <tbody>
             <tr><th>You pay</th><td id="cmp-single">$1,832</td><td id="cmp-pack"><strong>$1,832</strong></td></tr>
             <tr><th>Length of mornings</th><td id="cmp-len-single">3 hours each</td><td><strong id="cmp-len-pack">3 hours each</strong></td></tr>
@@ -190,10 +191,11 @@ details.packwrap .pack{margin-top:6px}
           </tbody>
         </table>
         <p class="packline" id="packline">The same price as four single mornings, used any time in 12 months.</p>
+        <ul class="perks"><li><strong>A standing morning.</strong> We hold the same weekday and time for you each month. Tell us a week ahead to keep it.</li><li><strong>Last-minute?</strong> Book a morning with half a day's notice (two a week, when we have room).</li><li><strong>Need a break?</strong> Pause for up to 6 weeks and your 12 months moves with it.</li></ul>
         <p class="fine">Paid up front. Pick the dates now or any time in 12 months, with 24 hours' notice. Cancel a morning with 24 hours' notice and it moves to another date.</p>
       </div>
       </details>
-      <details class="packwrap" id="contractwrap"><summary>Regular mornings? See paying ahead</summary>
+      <details class="packwrap" id="contractwrap" hidden><summary>Regular mornings? See paying ahead</summary>
       <div class="pack" id="contract">
         <div class="packhead"><strong>Office Club, paid ahead</strong></div>
         <table class="cmp" aria-label="Prepaid Office Club contract options">
@@ -308,6 +310,21 @@ const hours = () => Number(document.querySelector('input[name="hours"]:checked')
   const r = /^[2-6]$/.test(h) && document.querySelector(`input[name="hours"][value="${h}"]`);
   if (r) r.checked = true;
 } catch (err) {} })();
+// The optional photographer: the box exists only when config.js sets WANDER_PHOTO_RATE (whole dollars an hour, GST included). ?photo= (from the
+// Wander website) pre-ticks it; the visitor can still untick it. The request carries the hours (0 for none); Sam confirms on the call.
+const PHOTO_RATE = Number.isInteger(window.WANDER_PHOTO_RATE) && window.WANDER_PHOTO_RATE > 0 && window.WANDER_PHOTO_RATE <= 1000 ? window.WANDER_PHOTO_RATE : 0;
+const photoBox = document.getElementById("photographer");
+function updatePhoto() {
+  if (!PHOTO_RATE) return;
+  document.getElementById("photo-wrap").hidden = false;
+  document.getElementById("photo-price").textContent = "+$" + (PHOTO_RATE * hours()).toLocaleString("en-AU");
+}
+if (PHOTO_RATE) {
+  try { if (/^[2-6]$/.test(new URLSearchParams(location.search).get("photo") || "")) photoBox.checked = true; } catch (err) {}
+  document.addEventListener("change", updatePhoto); updatePhoto();
+}
+// Which door of the Wander website this visit came through (a to z, 0 to 9, - and _, 20 characters at most). A request field of its own, never a utm tag.
+const fromDoor = (() => { try { const v = new URLSearchParams(location.search).get("from") || ""; return /^[a-z0-9_-]{1,20}$/.test(v) ? v : ""; } catch (err) { return ""; } })();
 const money = (n) => "$" + n.toLocaleString("en-AU");
 const money2 = (v) => "$" + v.toFixed(2);
 // Fair comparisons, from real figures Sam keeps in config.js (WANDER_ANCHORS). Each is one line of totals for this visitor's
@@ -483,6 +500,7 @@ function bookingPayload() {
     package: pkg ? (pkg.value === "Prepaid contract" ? "Prepaid contract " + field("contract-term").value + " months" : pkg.value) : "Single morning", offers: field("offers").checked, referral: referralCode || "",
     source: source ? source.source : (referralCode ? "referral" : ""), medium: source ? source.medium : (referralCode ? "referral" : ""),
     campaign: source ? source.campaign : "", heard: field("heard").value,
+    photographer: PHOTO_RATE && photoBox.checked ? hours() : 0, from: fromDoor,
   };
 }
 function bookingProblem(p) {

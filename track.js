@@ -19,6 +19,8 @@
     leave: { act: "n", max: "n" },
     click: { to: "s", r: "s" },
     tap: { q: "s", a: "s", r: "s" },
+    // ev: a generic named event (n is its name, a and b short labels, v a number), for the Wander website's interaction events.
+    ev: { n: "s", a: "s", b: "s", v: "n" },
   };
   const REF_ALPHABET = "23456789ABCDEFGHJKMNPQRSTUVWXYZ";
 

@@ -43,3 +43,6 @@ window.WANDER_ANCHORS = [
   { label: "A coffee-only cart", coffeeOnly: true, unit: "coffee", note: "plus $30 travel", tiers: [{ guests: 50, hours: 2, price: 300 }, { guests: 100, hours: 3, price: 550 }, { guests: 200, hours: 4, price: 1000 }, { guests: 300, hours: 24, price: 1500 }] },
   { label: "A premium high tea package", perPerson: 45 },
 ];
+// The optional photographer add-on on the booking form: whole dollars an hour, GST included, for the whole morning. 0 or missing hides it.
+// Keep it the same as WANDER_PHOTO_RATE in the Wander website's assets/config.js.
+window.WANDER_PHOTO_RATE = 80;
