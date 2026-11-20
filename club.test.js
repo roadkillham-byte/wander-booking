@@ -42,3 +42,12 @@ test("track contract: the generic named event keeps short strings and numbers on
   assert.deepStrictEqual(T.sanitise("ev", { n: "section_view", a: "value", b: "x".repeat(80), v: 3, junk: "no" }), { t: "ev", d: { n: "section_view", a: "value", b: "x".repeat(40), v: 3 } });
   assert.strictEqual(T.sanitise("nope", { n: "x" }), null);
 });
+
+test("tap.html: photo consent is one tap, stored under the booking, and children need a parent or guardian", () => {
+  const { resolveTap } = require("./links.js");
+  assert.deepEqual(resolveTap("photos", "yes"), { q: "photos", a: "yes" });
+  assert.deepEqual(resolveTap("photos", "no"), { q: "photos", a: "no" });
+  assert.equal(resolveTap("photos", "maybe"), null);
+  assert.ok(/hit\.q === "photos"/.test(tap) && /parent or guardian/.test(tap) && /never of children/.test(tap));
+  assert.ok(/t\.track\("tap", \{ q: hit\.q, a: hit\.a, r: r \}\)/.test(tap), "stored with the request id");
+});

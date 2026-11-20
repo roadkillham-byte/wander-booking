@@ -7,7 +7,7 @@ window.WANDER_INTAKE_URL = "https://script.google.com/macros/s/AKfycbxdeorHui4vg
 // A public address; nothing secret in it. If it does not answer, the page falls back to the intake alone and we confirm by phone.
 window.WANDER_STORE_URL = "https://script.google.com/macros/s/AKfycbxCGCNlXLi89gROVM7TJhMAJNvZVCgVGUzmfCFUUIPpMDByO10IcHHxbQW_appYTI0/exec";
 
-// Where happy clients are asked to leave a review (a Google review link). Empty means no review ask is shown.
+// The Google review link, shown the same way to every client whatever their rating (never only to happy ones). Empty means no review ask is shown.
 window.WANDER_REVIEW_URL = "";
 // Passive page tracking (see privacy.html and the data layer plan). The events go to the same Google script as the
 // intake, whose SITE_KEY script property is the word below (not a secret). Without that match the endpoint accepts nothing.

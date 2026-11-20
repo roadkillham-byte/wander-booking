@@ -9,6 +9,7 @@
     industry: { prompt: "What kind of team is it?", answers: { office: "Office", trade: "Trade or yard", health: "Health or care", school: "School or club", realestate: "Real estate", event: "Events", other: "Something else" } },
     frequency: { prompt: "How often might you want us?", answers: { once: "Just once", monthly: "Monthly", weekly: "Weekly", unsure: "Not sure yet" } },
     heard: { prompt: "How did you find us?", answers: { van: "Saw the van", flyer: "A flyer", instagram: "Instagram", friend: "A friend", search: "Searching online", other: "Somewhere else" } },
+    photos: { prompt: "Happy for us to share photos from your morning?", answers: { yes: "Yes, happy for you to share them", no: "No thanks" } },
     rating: { prompt: "How did we do?", answers: { 1: "1", 2: "2", 3: "3", 4: "4", 5: "5" } },
     role: { prompt: "Who is booking?", answers: { owner: "The owner", office: "Office or practice manager", organiser: "An event organiser", other: "Someone else" } },
   };

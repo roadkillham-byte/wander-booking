@@ -27,6 +27,16 @@
     main.innerHTML = body;
     return;
   }
+  if (hit && hit.q === "photos") {
+    // Photo consent from the after-event email: one tap, the answer is stored with the booking. Nothing is shared without a yes.
+    t.track("tap", { q: hit.q, a: hit.a, r: r }); t.flush();
+    var review2 = window.WANDER_REVIEW_URL || "", yes = hit.a === "yes";
+    var pb = "<h1>Thanks, got it</h1><p>" + (yes ? "We'll only share photos we're proud of, and never of children unless a parent or guardian has said yes. Reply to the email any time and we'll take one down." : "No problem. We won't share photos from your morning.") + "</p>";
+    if (/^https:\/\//.test(review2)) pb += "<p>If you'd like to tell others how it went: <a href='" + esc(review2) + "'>leave a review</a></p>";
+    pb += "<p><a class='btn' href='" + esc(window.WANDER_LINKS.page) + "'>Back to Wander</a></p>";
+    main.innerHTML = pb;
+    return;
+  }
   if (hit) {
     t.track("tap", { q: hit.q, a: hit.a, r: r }); t.flush();
     if (asked.indexOf(hit.q) < 0) asked.push(hit.q);

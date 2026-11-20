@@ -30,7 +30,7 @@ test("resolveTap accepts only known question and answer pairs", () => {
 test("every tap question has a prompt and chips", () => {
   for (const q of Object.values(TAP_QUESTIONS)) {
     assert.ok(q.prompt.length > 5);
-    assert.ok(Object.keys(q.answers).length >= 3);
+    assert.ok(Object.keys(q.answers).length >= (q === TAP_QUESTIONS.photos ? 2 : 3)); // photo consent is a plain yes or no
   }
 });
 
