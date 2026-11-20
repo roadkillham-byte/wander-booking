@@ -51,3 +51,13 @@ test("tap.html: photo consent is one tap, stored under the booking, and children
   assert.ok(/hit\.q === "photos"/.test(tap) && /parent or guardian/.test(tap) && /never of children/.test(tap));
   assert.ok(/t\.track\("tap", \{ q: hit\.q, a: hit\.a, r: r \}\)/.test(tap), "stored with the request id");
 });
+
+test("tap.html offers every rating the private feedback code, separate from the review link (no reward for a review)", () => {
+  const rating = tap.slice(tap.indexOf('hit.q === "rating"'), tap.indexOf("main.innerHTML = body;"));
+  assert.ok(/WANDER_FEEDBACK_URL/.test(rating) && /whatever you rated/.test(rating), "offered for any rating");
+  assert.ok(rating.indexOf("WANDER_FEEDBACK_URL") < rating.indexOf("leave a review"), "feedback code first, review link after");
+  const reviewLine = rating.split("\n").find((l) => /leave a review/.test(l));
+  assert.ok(/nothing attached/.test(reviewLine) && !/10%|code|discount|off/i.test(reviewLine), "the review line promises nothing");
+  const cfg = fs.readFileSync(__dirname + "/config.js", "utf8");
+  assert.ok(/window\.WANDER_FEEDBACK_URL = "https:\/\/docs\.google\.com\/forms\/d\/e\/[A-Za-z0-9_-]+\/viewform";/.test(cfg));
+});
