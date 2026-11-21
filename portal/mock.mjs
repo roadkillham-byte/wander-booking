@@ -15,6 +15,10 @@ const S = require("./store/logic.js");
 
 export const MOCK_APP_TOKEN = "dev-app-token-0123456789abcdef";
 export const MOCK_CLIENT_TOKEN = "CLIENT-TOKEN-FIXTURE-0000000000";
+// A confirmed morning ten days out with a pre-order link (the key is the link's own, not a client's), and one already closed.
+export const MOCK_PREORDER_CLIENT_TOKEN = "CLIENT-TOKEN-PREORDER-0000000000";
+export const MOCK_PREORDER_KEY = "PREORDER-KEY-FIXTURE-0000000000000000";
+export const MOCK_PREORDER_CLOSED_KEY = "PREORDER-KEY-CLOSED-0000000000000000";
 export const MOCK_RETURNING_TOKEN = "CLIENT-TOKEN-RETURNING-0000000";
 export const MOCK_HANDMADE_TOKEN = "CLIENT-TOKEN-HANDMADE-000000000";
 export const MOCK_TWO_TOKEN = "CLIENT-TOKEN-TWOBOOKINGS-000000";
@@ -26,6 +30,8 @@ export const MOCK_EXTRAS_HELD_TOKEN = "CLIENT-TOKEN-EXTRAS-HELD-0000000";
 export const MOCK_EXTRAS_CONFIRMED_TOKEN = "CLIENT-TOKEN-EXTRAS-CONF-0000000";
 export const MOCK_EXTRAS_NONE_TOKEN = "CLIENT-TOKEN-EXTRAS-NONE-0000000";
 export const MOCK_EXTRAS_CANCELLED_TOKEN = "CLIENT-TOKEN-EXTRAS-CANC-0000000";
+
+function addDaysIso(iso, n) { const d = new Date(`${iso}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }
 
 const TYPES = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8",
   ".png": "image/png", ".woff2": "font/woff2", ".json": "application/json" };
@@ -80,6 +86,7 @@ export function seededDb(now = new Date().toISOString()) {
         referrals: [{ firstName: "Jo", status: "booked" }, { firstName: "Pat", status: "completed" }],
         quote: { date: "2026-12-12", startTime: "09:00", people: 20, hours: 3, address: "3 Lake Road, Tea Gardens", total: 619, fee: 0 } },
       { token: MOCK_RETURNING_TOKEN, firstName: "Sam", referralCode: "H4BC-7WDR" },
+      { token: MOCK_PREORDER_CLIENT_TOKEN, firstName: "Morgan", referralCode: "" },
       { token: MOCK_HANDMADE_TOKEN, firstName: "Pat", referralCode: "" },
       { token: MOCK_TWO_TOKEN, firstName: "Lee", referralCode: "", club: { month: now.slice(0, 7), used: 2, perMonth: 4 } },
       { token: MOCK_PACK_TOKEN, firstName: "Dana", referralCode: "", pack: { mornings: 4, delivered: 1, booked: 1, validUntil: "2027-11-20", pausedDays: 7, invoiceNo: "4P-20261101-1",
@@ -113,8 +120,13 @@ export function seededDb(now = new Date().toISOString()) {
         people: 60, hours: 3, address: "9 Beach Road, Hawks Nest", total: 1100, outOfHoursFee: 0, requestId: "", amountDue: 1100 },
       { id: "bk-x-canc", clientToken: MOCK_EXTRAS_CANCELLED_TOKEN, status: "cancelled", date: "2026-12-16", startTime: "09:00", endTime: "12:00",
         people: 20, hours: 3, address: "1 Main Street, Tea Gardens", total: 619, outOfHoursFee: 0, requestId: "", amountDue: 619, extras: [], extrasMenu: [EXTRA_STENCIL] },
+      { id: "bk-pre-open", clientToken: MOCK_PREORDER_CLIENT_TOKEN, status: "confirmed", date: addDaysIso(now.slice(0, 10), 10), startTime: "09:00", endTime: "12:00",
+        people: 20, hours: 3, address: "3 Lake Road, Tea Gardens", total: 619, outOfHoursFee: 0, requestId: "", amountDue: 619, preorderKey: MOCK_PREORDER_KEY },
+      { id: "bk-pre-closed", clientToken: MOCK_PREORDER_CLIENT_TOKEN, status: "confirmed", date: addDaysIso(now.slice(0, 10), 1), startTime: "09:00", endTime: "12:00",
+        people: 20, hours: 3, address: "3 Lake Road, Tea Gardens", total: 619, outOfHoursFee: 0, requestId: "", amountDue: 619, preorderKey: MOCK_PREORDER_CLOSED_KEY },
     ],
     busy: [],
+    preorderMenu: { drinks: ["Flat White", "Latte", "Cappuccino", "Long Black", "Hot Chocolate", "Chai Latte", "Tea"], milks: ["Full cream", "Oat", "Soy", "Lactose free", "No milk"], bowls: ["Granola Bowl", "Oat and About", "No bowl"] },
     reward: { referrerPercent: 10, friendPercent: 10, captainEvery: 3, captainFreeHours: 2 },
     credits: [
       { clientToken: MOCK_CLIENT_TOKEN, kind: "referral", label: "10% off your next booking", expiresAt: "2027-11-13" },
@@ -151,6 +163,9 @@ export function startMock(port = 4180, { db = seededDb() } = {}) {
       if (action === "extra") return send(200, S.extra(db, body, now));
       if (action === "availability") return send(200, S.availability(db, body, now));
       if (action === "event") return send(200, S.event(db, body, now));
+      if (action === "preordersession") return send(200, S.preorderSession(db, body.pk, now, body.pickId));
+      if (action === "preorderpick") return send(200, S.preorderPick(db, body, now));
+      if (action === "preorders") return send(200, S.preorders(db, body.k));
       if (action === "funnel") return send(200, S.funnel(db, body.k, now, body.days));
       if (action === "pending") return send(200, S.pending(db, body.k));
       if (action === "ack") return send(200, S.ack(db, body.k, body.ids));

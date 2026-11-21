@@ -22,8 +22,13 @@ var StoreLogic = (function () {
     bookings: ["id", "clientToken", "status", "date", "startTime", "endTime", "people", "hours", "address", "total", "outOfHoursFee", "requestId",
       "discount", "amountDue", "bonusHours", "creditsApplied", "payLink", "paid",
       // Added last so a sheet that already exists only gains columns at the end. JSON text: what the app offers and what is chosen.
-      "extrasMenu", "extras"],
+      "extrasMenu", "extras",
+      // Added after that, same rule: the key of this morning's pre-order link (made by Coffee Van, never the client's own key).
+      "preorderKey"],
     busy: ["date", "startTime", "endTime"],
+    // One row per person's pick for a confirmed morning (drink, milk, bowl, an optional first name and note). Deleted a week
+    // after the morning, because the note can say something about someone's health.
+    preorders: ["id", "bookingId", "createdAt", "firstName", "drink", "milk", "bowl", "note"],
     holds: ["requestId", "id", "clientToken", "date", "startTime", "endTime", "people", "hours", "address", "total", "outOfHoursFee", "createdAt"],
     queue: ["id", "kind", "receivedAt", "clientToken", "payload", "acked"],
     credits: ["clientToken", "kind", "label", "expiresAt"],
@@ -330,6 +335,7 @@ var StoreLogic = (function () {
           bonusHours: Math.max(0, Number(b.bonusHours || 0)), creditsApplied: JSON.stringify(cleanLabels(b.creditsApplied)),
           payLink: payLinkOk(b.payLink), paid: b.paid === true ? "yes" : "",
           extrasMenu: JSON.stringify(cleanMenu(b.extrasMenu)), extras: JSON.stringify(cleanChosen(b.extras)),
+          preorderKey: clean(b.preorderKey, 80),
         };
       });
       var busy = (snapshot.busy || []).map(function (b) { return { date: clean(b.date, 10), startTime: clean(b.startTime, 5), endTime: clean(b.endTime, 5) }; });
@@ -355,8 +361,125 @@ var StoreLogic = (function () {
       setMeta(db, "asOf", clean(snapshot.asOf, 40));
       setMeta(db, "publishedAt", now);
       if (snapshot.prices) writePrices(db, snapshot.prices);
+      if (snapshot.preorderMenu) setMeta(db, "preorderMenu", JSON.stringify(cleanPreorderMenu(snapshot.preorderMenu)));
+      purgePreorders(db, bookings, now);
       return { ok: true, clients: clients.length, bookings: bookings.length, busy: busy.length };
     });
+  }
+
+  // ---- Pre-orders -----------------------------------------------------------------------------------------------------
+  // The office manager of a confirmed morning forwards one link; each person on the team picks a drink, milk and bowl before
+  // 6 pm Sydney the day before, so the van knows what to prep. The link carries its own key (made by Coffee Van, one per
+  // morning), never the client's key, because the client's key can change or cancel the booking. A person edits only their own
+  // pick, by the id their browser holds; nobody sees anyone else's. The only table here that can hold something about a
+  // person's health is the optional note, so every pick is deleted a week after its morning.
+  var PRE_DEFAULT_MENU = {
+    drinks: ["Flat White", "Latte", "Cappuccino", "Long Black", "Hot Chocolate", "Chai Latte", "Tea"],
+    milks: ["Full cream", "Oat", "Soy", "Lactose free", "No milk"],
+    bowls: ["Granola Bowl", "Oat and About", "No bowl"],
+  };
+  var PRE_CUTOFF_TIME = "18:00";
+  var PRE_KEEP_DAYS = 7;
+  var PRE_EXTRA_PICKS = 10;
+  var PRE_MAX_PICKS = 260;
+
+  function cleanPreorderMenu(menu) {
+    var out = {};
+    ["drinks", "milks", "bowls"].forEach(function (k) {
+      var list = (menu && Array.isArray(menu[k]) ? menu[k] : []).map(function (v) { return clean(v, 40); }).filter(function (v, i, a) { return v !== "" && a.indexOf(v) === i; }).slice(0, 60);
+      out[k] = list.length > 0 ? list : PRE_DEFAULT_MENU[k].slice();
+    });
+    return out;
+  }
+
+  function preorderMenu(db) {
+    var raw = metaValue(db, "preorderMenu");
+    var parsed = null;
+    try { parsed = raw ? JSON.parse(raw) : null; } catch (e) { parsed = null; }
+    return cleanPreorderMenu(parsed);
+  }
+
+  // The confirmed morning this key belongs to, or null. A tentative or cancelled booking has no live link.
+  function preorderBookingBy(db, key) {
+    var k = clean(key, 120);
+    if (k.length < 16) return null;
+    var rows = db.read("bookings");
+    for (var i = 0; i < rows.length; i++) if (rows[i].preorderKey === k && rows[i].status === "confirmed") return rows[i];
+    return null;
+  }
+
+  function preorderCutoff(date) {
+    return WanderRules.sydneyEpoch(WanderRules.addDays(date, -1), PRE_CUTOFF_TIME);
+  }
+
+  function preorderOpen(booking, now) {
+    return Date.parse(now) < preorderCutoff(booking.date);
+  }
+
+  function preorderPickOf(row) {
+    return { id: row.id, firstName: row.firstName, drink: row.drink, milk: row.milk, bowl: row.bowl, note: row.note };
+  }
+
+  // What the page needs to show the form: the morning's day and times, whether picks are still open, the menu, and the caller's
+  // own pick when they hold its id. Never the client's key, address or price.
+  function preorderSession(db, key, now, pickId) {
+    var booking = preorderBookingBy(db, key);
+    if (!booking) return { ok: false, error: "not-found" };
+    var mine = null;
+    var id = clean(pickId, 80);
+    if (id) db.read("preorders").forEach(function (r) { if (r.id === id && r.bookingId === booking.id) mine = preorderPickOf(r); });
+    return {
+      ok: true,
+      open: preorderOpen(booking, now),
+      cutoffAt: new Date(preorderCutoff(booking.date)).toISOString(),
+      booking: { date: booking.date, startTime: booking.startTime, endTime: booking.endTime, people: Number(booking.people) },
+      menu: preorderMenu(db),
+      mine: mine,
+    };
+  }
+
+  function preorderPick(db, body, now) {
+    body = body || {};
+    var booking = preorderBookingBy(db, body.pk);
+    if (!booking) return { ok: false, error: "not-found" };
+    if (!preorderOpen(booking, now)) return { ok: false, error: "closed" };
+    var menu = preorderMenu(db);
+    var drink = clean(body.drink, 40), milk = clean(body.milk, 40), bowl = clean(body.bowl, 40);
+    if (menu.drinks.indexOf(drink) < 0 || menu.milks.indexOf(milk) < 0 || menu.bowls.indexOf(bowl) < 0) return { ok: false, error: "bad-pick" };
+    var fields = { firstName: clean(body.firstName, 30), drink: drink, milk: milk, bowl: bowl, note: clean(body.note, 120) };
+    return db.lock(function () {
+      var rows = db.read("preorders");
+      var id = clean(body.pickId, 80);
+      var at = -1;
+      if (id) rows.forEach(function (r, i) { if (r.id === id && r.bookingId === booking.id) at = i; });
+      if (at >= 0) {
+        rows[at] = Object.assign({}, rows[at], fields);
+      } else {
+        var have = rows.filter(function (r) { return r.bookingId === booking.id; }).length;
+        if (have >= Math.min(Number(booking.people) + PRE_EXTRA_PICKS, PRE_MAX_PICKS)) return { ok: false, error: "full" };
+        id = "po-" + String(typeof db.newKey === "function" ? db.newKey() : Math.random().toString(36).slice(2) + Date.now().toString(36)).slice(0, 40);
+        rows.push(Object.assign({ id: id, bookingId: booking.id, createdAt: now }, fields));
+        at = rows.length - 1;
+      }
+      db.write("preorders", rows);
+      return { ok: true, pickId: rows[at].id, pick: preorderPickOf(rows[at]) };
+    });
+  }
+
+  // Coffee Van reads every pick (it shows the prep list and the stock the morning needs).
+  function preorders(db, appToken) {
+    if (!appTokenOk(db, appToken)) return { ok: false, error: "not-allowed" };
+    return { ok: true, picks: db.read("preorders") };
+  }
+
+  // A publish drops the picks of any morning more than a week past or no longer listed.
+  function purgePreorders(db, bookings, now) {
+    var today = WanderRules.sydneyDate(now);
+    var keep = {};
+    bookings.forEach(function (b) { if (b.id && isDate(b.date) && WanderRules.addDays(b.date, PRE_KEEP_DAYS) >= today) keep[b.id] = true; });
+    var rows = db.read("preorders");
+    var kept = rows.filter(function (p) { return keep[p.bookingId]; });
+    if (kept.length !== rows.length) db.write("preorders", kept);
   }
 
   function pending(db, appToken) {
@@ -884,6 +1007,7 @@ var StoreLogic = (function () {
     health: health, publish: publish, pending: pending, ack: ack, prices: prices, session: session, request: request, extra: extra,
     availability: availability, openTimes: openTimes, newHold: newHold, failureAlert: failureAlert,
     endTimeFor: endTimeFor, readRequest: readRequest,
+    preorderSession: preorderSession, preorderPick: preorderPick, preorders: preorders,
   };
 })();
 if (typeof module === "object" && module.exports) module.exports = StoreLogic;

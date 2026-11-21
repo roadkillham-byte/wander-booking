@@ -128,6 +128,23 @@ characters), blocks the slot only when held, and queues a `newhold` item for Cof
 The key opens the portal at once (`session`); Coffee Van adopts the same key for the client it creates, and the store drops its provisional
 copy once a publish lists that key. Errors: `no-name`, `bad-phone`, `bad-email`, `no-request-id`, the usual request errors, `too-many`.
 
+## Pre-orders (a link's own key, public)
+A confirmed morning can have a pre-order link: the page address plus `#p=<key>`. The key is made by Coffee Van (one per morning,
+published as `preorderKey` on the booking) and is never the client's key, because the client's key can change or cancel the booking.
+The office manager forwards the link; each person picks a drink, milk and bowl before **6 pm Sydney the day before** the morning.
+- `preordersession` `{pk, pickId?}` -> `{ok, open, cutoffAt, booking:{date,startTime,endTime,people}, menu:{drinks,milks,bowls}, mine}`.
+  Only a **confirmed** booking has a live link (`not-found` otherwise). Never the client's key, address or price. `mine` is the
+  caller's own pick, returned only to the holder of its `pickId`; nobody sees anyone else's.
+- `preorderpick` `{pk, pickId?, firstName?, drink, milk, bowl, note?}` -> `{ok, pickId, pick}`. Drink, milk and bowl must be on the menu
+  (`bad-pick`). Name (30 characters) and note (120) are optional. The same `pickId` edits that pick; none creates one. After the cut-off
+  `closed`. At most people + 10 picks a morning (`full`).
+- `preorders` `{k: app token}` -> `{ok, picks:[{id, bookingId, createdAt, firstName, drink, milk, bowl, note}]}`: Coffee Van reads every pick.
+- The menu comes from the publish (`snapshot.preorderMenu`, built from Coffee Van's own products); a plain default is used until then.
+- **Retention:** a publish deletes the picks of a morning more than 7 days past, or no longer listed. The note can say something about
+  someone's health, so it is not kept.
+- The page (`preorder.js`) shows a collection notice under the form: name and order are used only to prepare the morning and deleted a
+  week after it. The site's privacy page is a separate public edit (Sam: skip).
+
 ## Coffee Van pull and ack (app token)
 
 `POST ?action=pending` with body `{k: APP_TOKEN}` → `{ok, items:[...]}`. Each item is one request with its `kind` and fields plus `clientToken`.

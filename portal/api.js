@@ -28,5 +28,8 @@ var WanderApi = (function () {
     request: function (body) { return send("request", body); },
     extra: function (body) { return send("extra", body); },
     event: function (body) { return send("event", body); },
+    // Pre-orders (docs/contract.md): the link carries its own key, never the client's.
+    preorderSession: function (pk, pickId) { return send("preordersession", { pk: pk, pickId: pickId || "" }); },
+    preorderPick: function (body) { return send("preorderpick", body); },
   };
 })();

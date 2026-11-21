@@ -91,7 +91,7 @@ function doGet(e) {
   }
 }
 
-// POST (text/plain JSON body): session, request, extra, availability, event, funnel, publish, pending, ack.
+// POST (text/plain JSON body): session, request, extra, availability, event, preordersession, preorderpick, preorders, funnel, publish, pending, ack.
 function doPost(e) {
   var action = (e && e.parameter && e.parameter.action) || '';
   var body;
@@ -107,6 +107,10 @@ function doPost(e) {
     if (action === 'opentimes') return storeJson_(StoreLogic.openTimes(db, body, now));
     if (action === 'newhold') return storeJson_(StoreLogic.newHold(db, body, now));
     if (action === 'event') return storeJson_(StoreLogic.event(db, body, now));
+    // Pre-orders: the link's own key is the key (a team member never holds the client's key). Coffee Van reads every pick with the app token.
+    if (action === 'preordersession') return storeJson_(StoreLogic.preorderSession(db, body.pk, now, body.pickId));
+    if (action === 'preorderpick') return storeJson_(StoreLogic.preorderPick(db, body, now));
+    if (action === 'preorders') return storeJson_(StoreLogic.preorders(db, body.k));
     if (action === 'funnel') return storeJson_(StoreLogic.funnel(db, body.k, now, body.days));
     if (action === 'publish') return storeJson_(StoreLogic.publish(db, body.k, body.snapshot, now));
     if (action === 'pending') return storeJson_(StoreLogic.pending(db, body.k));

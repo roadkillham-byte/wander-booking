@@ -851,6 +851,8 @@
   }
 
   function route() {
+    // A pre-order link (#p=...) is its own small page: it never touches a client's account (preorder.js).
+    if (window.WanderPreorder && window.WanderPreorder.active(location.hash)) { window.WanderPreorder.show(app); return; }
     parseHash();
     if (!state.k) {
       showPage(shell('<section class="rise d1"><h2 class="rule">Open your link</h2><p>Your morning link is in the email we sent you. Open it from there and this page will know who you are.</p></section>'));

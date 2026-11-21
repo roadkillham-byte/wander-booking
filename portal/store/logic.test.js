@@ -818,8 +818,8 @@ const bookingOf = (db, id, token = ALEX) => S.session(db, token, NOW).bookings.f
 
 test("extras: the bookings table has columns for the menu and the chosen extras, after the old ones so a sheet keeps its header refresh", () => {
   const cols = S.TABLES.bookings;
-  assert.deepEqual(cols.slice(-2), ["extrasMenu", "extras"]);
-  assert.equal(cols[cols.length - 3], "paid");
+  assert.deepEqual(cols.slice(-3), ["extrasMenu", "extras", "preorderKey"]); // the pre-order key was added after them
+  assert.equal(cols[cols.length - 4], "paid");
 });
 
 test("extras: a published menu and the chosen extras reach the session; a booking without a menu has none", () => {
@@ -1156,4 +1156,149 @@ test("a pause the rules allow is queued; more than 42 days in all, or under a we
   const short = S.request(db, { k: ALEX, kind: "pause", requestId: "pa-3", from: "2026-12-04", days: 7 }, NOW);
   assert.equal(short.outcome, "declined");
   assert.equal(db.tables.queue.filter((x) => x.kind === "pause").length, 1);
+});
+
+// ---- Pre-orders: each person on a confirmed morning picks a drink, milk and bowl before 6 pm the day before. ----
+const PK = "PREORDER-KEY-0123456789abcdefghijklmn";
+const PMENU = { drinks: ["Flat White", "Latte", "Long Black", "Hot Chocolate"], milks: ["Full cream", "Oat", "Soy", "Lactose free", "No milk"], bowls: ["Granola Bowl", "Oat and About", "No bowl"] };
+const pbooking = (over = {}) => Object.assign({ id: "bk-101", clientToken: "TOKEN-ALEX-0000000000000001", status: "confirmed", date: "2026-12-05", startTime: "09:00", endTime: "12:00",
+  people: 20, hours: 3, address: "1 Main Street, Tea Gardens", total: 619, outOfHoursFee: 0, requestId: "", preorderKey: PK }, over);
+const publishP = (db, over = {}) => publish(db, Object.assign({ bookings: [pbooking()], preorderMenu: PMENU }, over));
+const pick = (over = {}) => Object.assign({ pk: PK, firstName: "Jo", drink: "Flat White", milk: "Oat", bowl: "Granola Bowl", note: "" }, over);
+
+test("a publish keeps each booking's pre-order key and the menu, and the key opens a session with only what the team needs", () => {
+  const db = makeDb();
+  assert.equal(publishP(db).ok, true);
+  assert.equal(db.tables.bookings[0].preorderKey, PK);
+  const r = S.preorderSession(db, PK, NOW);
+  assert.equal(r.ok, true);
+  assert.equal(r.open, true);
+  assert.deepEqual(r.booking, { date: "2026-12-05", startTime: "09:00", endTime: "12:00", people: 20 });
+  assert.deepEqual(r.menu, PMENU);
+  const text = JSON.stringify(r);
+  for (const secret of ["TOKEN-ALEX", "Main Street", "619", "clientToken", "address", "total"]) assert.equal(text.includes(secret), false, secret);
+});
+
+test("an unknown, empty or short key finds nothing, and only a confirmed morning can be pre-ordered", () => {
+  const db = makeDb();
+  publishP(db, { bookings: [pbooking(), pbooking({ id: "bk-102", preorderKey: "TENTATIVE-KEY-0123456789abcdefghijklm", status: "tentative" }), pbooking({ id: "bk-103", preorderKey: "CANCELLED-KEY-0123456789abcdefghijklm", status: "cancelled" })] });
+  assert.deepEqual(S.preorderSession(db, "nope", NOW), { ok: false, error: "not-found" });
+  assert.deepEqual(S.preorderSession(db, "", NOW), { ok: false, error: "not-found" });
+  assert.deepEqual(S.preorderSession(db, "TENTATIVE-KEY-0123456789abcdefghijklm", NOW), { ok: false, error: "not-found" });
+  assert.deepEqual(S.preorderSession(db, "CANCELLED-KEY-0123456789abcdefghijklm", NOW), { ok: false, error: "not-found" });
+});
+
+test("a pick is stored with an id the browser keeps, and the same id edits it instead of adding another", () => {
+  const db = makeDb();
+  publishP(db);
+  const first = S.preorderPick(db, pick(), NOW);
+  assert.equal(first.ok, true);
+  assert.ok(first.pickId.length >= 16);
+  assert.equal(db.tables.preorders.length, 1);
+  assert.deepEqual(db.tables.preorders[0], { id: first.pickId, bookingId: "bk-101", createdAt: NOW, firstName: "Jo", drink: "Flat White", milk: "Oat", bowl: "Granola Bowl", note: "" });
+  const again = S.preorderPick(db, pick({ pickId: first.pickId, drink: "Latte", milk: "Soy" }), NOW);
+  assert.equal(again.pickId, first.pickId);
+  assert.equal(db.tables.preorders.length, 1);
+  assert.equal(db.tables.preorders[0].drink, "Latte");
+  assert.equal(db.tables.preorders[0].milk, "Soy");
+  assert.equal(db.tables.preorders[0].createdAt, NOW);
+  const other = S.preorderPick(db, pick({ firstName: "Pat" }), NOW);
+  assert.notEqual(other.pickId, first.pickId);
+  assert.equal(db.tables.preorders.length, 2);
+});
+
+test("a person's own pick comes back to them by id, and nobody else's does", () => {
+  const db = makeDb();
+  publishP(db);
+  const a = S.preorderPick(db, pick({ firstName: "Jo" }), NOW);
+  S.preorderPick(db, pick({ firstName: "Pat", drink: "Latte" }), NOW);
+  const mine = S.preorderSession(db, PK, NOW, a.pickId);
+  assert.equal(mine.mine.firstName, "Jo");
+  assert.equal(mine.mine.id, a.pickId);
+  assert.equal(JSON.stringify(mine).includes("Pat"), false);
+  assert.equal(S.preorderSession(db, PK, NOW, "someone-elses-id").mine, null);
+});
+
+test("a pick needs a drink, milk and bowl from the menu; the name and the note are optional and kept short", () => {
+  const db = makeDb();
+  publishP(db);
+  for (const bad of [{ drink: "Mocha" }, { milk: "Almond" }, { bowl: "Pie" }, { drink: "" }, { milk: "" }, { bowl: "" }]) {
+    assert.equal(S.preorderPick(db, pick(bad), NOW).ok, false, JSON.stringify(bad));
+  }
+  assert.equal(db.tables.preorders.length, 0);
+  const ok = S.preorderPick(db, pick({ firstName: "  " + "J".repeat(80), note: "x".repeat(300) + "\nnut allergy" }), NOW);
+  assert.equal(ok.ok, true);
+  assert.equal(db.tables.preorders[0].firstName.length, 30);
+  assert.equal(db.tables.preorders[0].note.length, 120);
+  assert.equal(S.preorderPick(db, pick({ firstName: "", note: undefined }), NOW).ok, true);
+});
+
+test("picks close at 6 pm Sydney the day before the morning", () => {
+  const db = makeDb();
+  publishP(db);
+  const before = "2026-12-04T17:59:00+11:00";
+  const at = "2026-12-04T18:00:00+11:00";
+  const first = S.preorderPick(db, pick(), before);
+  assert.equal(first.ok, true);
+  assert.equal(S.preorderSession(db, PK, before).open, true);
+  assert.equal(S.preorderSession(db, PK, at).open, false);
+  assert.deepEqual(S.preorderPick(db, pick(), at), { ok: false, error: "closed" });
+  assert.deepEqual(S.preorderPick(db, pick({ pickId: first.pickId, drink: "Latte" }), at), { ok: false, error: "closed" });
+  assert.equal(db.tables.preorders[0].drink, "Flat White");
+});
+
+test("a key opens only its own morning, and a pick id from another morning edits nothing", () => {
+  const db = makeDb();
+  const PK2 = "SECOND-KEY-0123456789abcdefghijklmnopq";
+  publishP(db, { bookings: [pbooking(), pbooking({ id: "bk-102", date: "2026-12-12", preorderKey: PK2 })] });
+  const a = S.preorderPick(db, pick(), NOW);
+  const r = S.preorderPick(db, pick({ pk: PK2, pickId: a.pickId, drink: "Latte" }), NOW);
+  assert.equal(r.ok, true);
+  assert.notEqual(r.pickId, a.pickId);
+  assert.equal(db.tables.preorders.find((p) => p.id === a.pickId).drink, "Flat White");
+});
+
+test("picks are capped at the number of people plus ten, so a leaked link cannot fill the sheet", () => {
+  const db = makeDb();
+  publishP(db, { bookings: [pbooking({ people: 2 })] });
+  for (let i = 0; i < 12; i++) assert.equal(S.preorderPick(db, pick({ firstName: "P" + i }), NOW).ok, true);
+  assert.deepEqual(S.preorderPick(db, pick({ firstName: "Extra" }), NOW), { ok: false, error: "full" });
+});
+
+test("Coffee Van reads every pick with the app token, and nobody else can", () => {
+  const db = makeDb();
+  publishP(db);
+  S.preorderPick(db, pick({ note: "nut allergy" }), NOW);
+  assert.deepEqual(S.preorders(db, "wrong"), { ok: false, error: "not-allowed" });
+  const r = S.preorders(db, APP);
+  assert.equal(r.ok, true);
+  assert.equal(r.picks.length, 1);
+  assert.equal(r.picks[0].bookingId, "bk-101");
+  assert.equal(r.picks[0].note, "nut allergy");
+});
+
+test("a publish deletes the picks of a morning more than a week past, or no longer listed (allergy notes are not kept)", () => {
+  const db = makeDb();
+  publishP(db, { bookings: [pbooking(), pbooking({ id: "bk-102", date: "2026-12-12", preorderKey: "SECOND-KEY-0123456789abcdefghijklmnopq" })] });
+  S.preorderPick(db, pick(), NOW);
+  S.preorderPick(db, pick({ pk: "SECOND-KEY-0123456789abcdefghijklmnopq" }), NOW);
+  assert.equal(db.tables.preorders.length, 2);
+  // 11 Dec: the 5th is six days past (kept), nothing deleted yet.
+  S.publish(db, APP, { asOf: "2026-12-11T06:00:00+11:00", bookings: [pbooking(), pbooking({ id: "bk-102", date: "2026-12-12", preorderKey: "SECOND-KEY-0123456789abcdefghijklmnopq" })], preorderMenu: PMENU }, "2026-12-11T07:00:00+11:00");
+  assert.equal(db.tables.preorders.length, 2);
+  // 13 Dec: the 5th is eight days past, so its picks go; the 12th is a day past and stays.
+  S.publish(db, APP, { asOf: "2026-12-13T06:00:00+11:00", bookings: [pbooking(), pbooking({ id: "bk-102", date: "2026-12-12", preorderKey: "SECOND-KEY-0123456789abcdefghijklmnopq" })], preorderMenu: PMENU }, "2026-12-13T07:00:00+11:00");
+  assert.deepEqual(db.tables.preorders.map((p) => p.bookingId), ["bk-102"]);
+  // A booking the app no longer lists loses its picks too.
+  S.publish(db, APP, { asOf: "2026-12-13T08:00:00+11:00", bookings: [], preorderMenu: PMENU }, "2026-12-13T08:30:00+11:00");
+  assert.equal(db.tables.preorders.length, 0);
+});
+
+test("with no menu published the session offers a plain default, so a first pre-order never meets an empty list", () => {
+  const db = makeDb();
+  publish(db, { bookings: [pbooking()] });
+  const r = S.preorderSession(db, PK, NOW);
+  assert.equal(r.ok, true);
+  assert.ok(r.menu.drinks.length >= 4 && r.menu.milks.length >= 3 && r.menu.bowls.length >= 2);
+  assert.ok(r.menu.bowls.includes("No bowl"));
 });
