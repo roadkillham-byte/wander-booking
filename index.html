@@ -3,8 +3,9 @@
 <head>
 <meta charset="utf-8">
 <script>
-// One link for everyone. A client who arrives with their private key (#k=...) goes straight to their portal, which lives under /portal/ on this site.
-if (/[#&]k=[A-Za-z0-9_-]{8,}/.test(location.hash)) location.replace("portal/" + location.hash);
+// One link for everyone. A client who arrives with their private key (#k=...) goes straight to their portal, and a team member with a pre-order
+// key (#p=...) goes straight to their morning's drinks page; both live under /portal/ on this site.
+if (/[#&][kp]=[A-Za-z0-9_-]{8,}/.test(location.hash)) location.replace("portal/" + location.hash);
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Book Wander Coffee Van</title>
