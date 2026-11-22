@@ -123,6 +123,7 @@ section.good details p{margin:8px 0 0}
 .chip[aria-checked="true"]{background:var(--forest);border-color:var(--forest);color:var(--cream)}
 #start-note{font-size:19px;font-weight:700;color:var(--forest);margin:4px 0 0}
 #start-note.low,#date-note.low{color:var(--orange)}
+@media(max-width:560px){header{padding:12px 0 50px}.mark img{width:150px}h1{font-size:40px;margin:12px 0 6px}.lede{font-size:18px}main{margin-top:-30px}.tag .amt{font-size:72px}.tag{margin:14px 0 4px;padding:12px 16px 10px 32px}#people{font-size:36px}}
 .perhead{margin:6px 0 0;font-size:18px;font-weight:700;color:var(--forest)}
 .anchor{margin:4px 0 0;font-size:17px;color:var(--ink)}
 .case{margin:0 0 14px;padding:12px 14px;border:2px solid var(--forest);border-radius:12px;background:#fff9ef}
@@ -177,6 +178,10 @@ details.packwrap .pack{margin-top:6px}
         <label><input type="radio" name="hours" value="5"><span>5</span></label>
         <label><input type="radio" name="hours" value="6"><span>6</span></label>
       </div>
+      <div class="tag" aria-live="polite">
+        <div class="amt" id="amt">$619</div>
+        <div class="sub" id="sub">20 people, 3 hours, including GST</div>
+      </div>
       <div id="pkg-wrap">
       <label id="pkg-label">One morning or four?</label>
       <div class="pkg" role="radiogroup" aria-labelledby="pkg-label">
@@ -192,10 +197,6 @@ details.packwrap .pack{margin-top:6px}
           <option value="12">12 months</option>
         </select>
       </div>
-      </div>
-      <div class="tag" aria-live="polite">
-        <div class="amt" id="amt">$619</div>
-        <div class="sub" id="sub">20 people, 3 hours, including GST</div>
       </div>
       <div id="photo-wrap" hidden><label class="check"><input type="checkbox" id="photographer"> <span>Add a photographer for the whole morning <b id="photo-price"></b></span></label><p class="fine">Photos of your morning. We confirm the details when we ring you.</p></div>
       <p class="perhead" id="perhead"></p>

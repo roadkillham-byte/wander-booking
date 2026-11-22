@@ -70,6 +70,15 @@ await check("the removed copy is gone and the numbers from the Wander site arriv
   await ctx.close();
 });
 
+await check("on a phone the price is on the first screen, before any scrolling", async () => {
+  const { page, ctx } = await open("held");
+  await page.setViewportSize({ width: 390, height: 800 });
+  const box = await page.locator("#amt").boundingBox();
+  if (!box) throw new Error("no price box");
+  if (box.y + box.height > 800) throw new Error("the price ends at " + Math.round(box.y + box.height) + "px, below the 800px fold");
+  await ctx.close();
+});
+
 await check("a held request replaces the form with a plain confirmation and a working link to the client's own page", async () => {
   const { page, ctx, sent } = await open("held");
   const date = await fillAndSend(page);
