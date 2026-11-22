@@ -126,6 +126,9 @@
     if (booking) return renderBookingCard(booking, true);
     var q = state.session && state.session.quote;
     var last = lastCompleted();
+    // A request the van could not hold yet has no booking to show until Coffee Van reads it. Until then say so, instead of asking again for
+    // the date, hours and people the client has just given.
+    if (!q && !last && requestWaiting()) return renderRequestWaiting();
     if (!q && last) return usable(last) ? renderSameAgain(last) : renderPick(seedFrom(last), "new");
     if (!q) return renderPick({ date: "", startTime: "09:00", people: 20, hours: 3, address: "" }, "new");
     var total = Number(q.total) + Number(q.fee || 0);
@@ -143,6 +146,19 @@
       '<p class="note"><a href="#k=' + encodeURIComponent(state.k) + '&v=pick">Change the date, time or people</a></p></section>' + creditsHtml();
     track("view", { v: "held" });
     return shell(inner + promisesHtml(), { step: 1, greet: "Hi " + firstName() + ". Here is your morning." });
+  }
+
+  function requestWaiting() {
+    var list = (state.session && state.session.pending) || [];
+    return list.filter(function (x) { return x.kind === "newhold"; })[0] || null;
+  }
+  function renderRequestWaiting() {
+    var inner = '<section class="rise d1"><h2 class="rule">We have your request</h2>' +
+      "<p>We ring you today to lock in your date. Nothing is charged before then.</p>" +
+      '<p class="note">Your price is in your inbox, from wandermcco@gmail.com. Not there in a few minutes? Check your spam or junk folder.</p>' +
+      '<p class="note"><a href="#k=' + encodeURIComponent(state.k) + '&v=pick">Pick a different date, time or number of people</a></p></section>';
+    track("view", { v: "request-waiting" });
+    return shell(inner + promisesHtml(), { step: 1, greet: "Hi " + firstName() + "." });
   }
 
   // A booking typed into Coffee Van by hand may have no headcount or start time; Same again needs all the details.

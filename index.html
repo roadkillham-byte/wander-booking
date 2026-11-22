@@ -9,7 +9,7 @@ if (/[#&][kp]=[A-Za-z0-9_-]{8,}/.test(location.hash)) location.replace("portal/"
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Book Wander Coffee Van</title>
-<meta name="description" content="Coffee van for your weekend event. See your price now, then send your booking request. We call to lock it in.">
+<meta name="description" content="Coffee van for your event. See your price now, then send your booking request. We call to lock it in.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
@@ -79,8 +79,16 @@ button:active{transform:translate(3px,3px);box-shadow:1px 1px 0 var(--ink)}
 button[disabled]{opacity:.6;cursor:progress}
 .hp{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
 .msg{margin-top:14px;padding:12px 14px;border-radius:10px;border:2px solid var(--ink);background:#fff3e2}
-.done{text-align:center;padding:26px 10px}
-.done .big{font-family:var(--hand);font-size:54px;line-height:1;color:var(--forest)}
+.sent{padding:26px 22px}
+.sent-mark{margin:0 0 6px;width:64px;height:64px;border-radius:50%;background:var(--forest);color:var(--cream);font-family:var(--sans);font-size:38px;font-weight:700;line-height:64px;text-align:center}
+.sent h2{font-size:44px;margin-bottom:8px}
+.sent h3{font-family:var(--hand);font-weight:400;font-size:28px;margin:18px 0 8px;color:var(--forest)}
+.sent-lead{font-size:20px;margin:0 0 12px}
+.sent-ticket{display:grid;grid-template-columns:auto 1fr;gap:6px 16px;margin:0;padding:14px 16px;border:2px dashed var(--forest);border-radius:12px;background:#fff9ef}
+.sent-ticket dt{font-size:15px;letter-spacing:.06em;text-transform:uppercase;color:var(--forest)}
+.sent-ticket dd{margin:0;font-weight:700}
+.linkish{width:auto;margin:0;padding:0;font-family:var(--body);font-size:17px;color:var(--forest);background:none;border:0;border-radius:0;box-shadow:none;text-decoration:underline;cursor:pointer}
+.linkish:hover,.linkish:active{transform:none;box-shadow:none}
 footer{font-size:16px;color:var(--line)}
 footer.wrap{margin-top:56px;padding-bottom:40px}
 footer a{color:var(--forest)}
@@ -136,13 +144,27 @@ details.packwrap .pack{margin-top:6px}
 <header>
   <div class="wrap">
     <div class="mark rise"><img src="assets/wander-logo.png" alt="Wander" width="700" height="237"></div>
-    <h1 class="rise d1">A weekend morning your people <em>talk about.</em></h1>
-    <p class="lede rise d2">Pick people and hours. See your price. We handle the rest. Saturdays and Sundays are our sure thing.</p>
+    <h1 class="rise d1">A morning your people <em>talk about.</em></h1>
+    <p class="lede rise d2">Pick people and hours. See your price. We handle the rest.</p>
   </div>
 </header>
 
 <main class="wrap">
   <div class="grid">
+    <section class="card sent" id="sent" role="status" tabindex="-1" hidden>
+      <p class="sent-mark" aria-hidden="true">✓</p>
+      <h2 id="sent-title">Request sent!</h2>
+      <p class="sent-lead" id="sent-lead"></p>
+      <dl class="sent-ticket" id="sent-ticket"></dl>
+      <h3>What happens next</h3>
+      <ol class="steps">
+        <li><span><strong>Check your inbox.</strong> Your price is on its way from <b>wandermcco@gmail.com</b>. Not there in a few minutes? Look in your spam or junk folder.</span></li>
+        <li><span><strong>We ring you today</strong> on <b id="sent-phone"></b> to lock it in. Nothing is charged before then.</span></li>
+        <li><span><strong>Your own page</strong> lets you see or change your morning any time.</span></li>
+      </ol>
+      <a class="go" id="sent-page" href="portal/">Open your page</a>
+      <p class="fine"><button type="button" class="linkish" id="sent-again">Change something or send another request</button></p>
+    </section>
     <form class="card rise d3" id="form" novalidate>
       <div class="row">
         <div><label for="people">How many people?</label><input id="people" name="people" type="number" inputmode="numeric" min="1" max="500" value="20" required></div>
@@ -178,7 +200,6 @@ details.packwrap .pack{margin-top:6px}
       <div id="photo-wrap" hidden><label class="check"><input type="checkbox" id="photographer"> <span>Add a photographer for the whole morning <b id="photo-price"></b></span></label><p class="fine">Photos of your morning. We confirm the details when we ring you.</p></div>
       <p class="perhead" id="perhead"></p>
       <div id="anchor" hidden></div>
-      <p class="inc">Any bowl · Unlimited drinks · Set-up included</p>
       <details class="packwrap"><summary>Four mornings? See the Office Club</summary>
       <div class="pack" id="pack">
         <div class="packhead"><strong>Office Club</strong> <span class="badge">price locked 12 months</span></div>
@@ -207,7 +228,6 @@ details.packwrap .pack{margin-top:6px}
         <p class="fine">Pay it all at once or monthly. Book as many of your paid mornings as you like, any time in the term, and your price is held the whole way. Free service hours unlock after half your mornings, and you can pause for up to 6 weeks. Any mornings you don't use are refunded. The 6 and 12 month terms are paid by bank transfer (3 months can be card too). Nothing is charged online: choose this, send the form and we'll ring you to set it up.</p>
       </div>
       </details>
-      <p class="promise-line"><strong>Late, no-show or not right? We make it right.</strong></p>
       <div class="row">
         <div><label for="name">Name</label><input id="name" name="name" autocomplete="name" maxlength="80" required></div>
         <div><label for="phone">Best number</label><input id="phone" name="phone" type="tel" autocomplete="tel" maxlength="30" required></div>
@@ -216,7 +236,7 @@ details.packwrap .pack{margin-top:6px}
         <div><label for="email">Email</label><input id="email" name="email" type="email" autocomplete="email" maxlength="120" required></div>
         <div><label for="date">Date of your event</label><input id="date" name="date" type="date" required></div>
       </div>
-      <p class="fine" id="date-note">Saturdays and Sundays are our sure thing. A weekday? Pick it and we'll ring to see what we can do.</p>
+      <p class="fine" id="date-note">A weekday? Pick it and we'll ring to see what we can do.</p>
       <label id="start-label">Start time</label>
       <p id="start-note" hidden></p>
       <div class="chips" id="start-chips" role="radiogroup" aria-labelledby="start-label"><span class="fine">Pick a date first</span></div>
@@ -366,8 +386,8 @@ function showQuote() {
   const amtText = n ? money(aheadTerm ? aheadTerm.total : quote(n, h)) : "$ ...";
   // The brand font has no dollar sign, so the currency symbol is set in the body font.
   document.getElementById("amt").innerHTML = amtText.replace(/^\$/, '<span class="cur">$</span>');
-  document.getElementById("perhead").textContent = n ? `That is ${money2(quote(n, h) / n)} a head, everything included.` : "";
-  if (aheadTerm) document.getElementById("perhead").textContent = `${aheadTerm.mornings} mornings at ${money(quote(n, h))} each, or ${money(aheadTerm.monthly)} a month. That is ${money2(quote(n, h) / n)} a head each morning.`;
+  // Only a paid-ahead term needs a line here (what each morning costs and the monthly amount); a single morning says its price once, in the tag.
+  document.getElementById("perhead").textContent = aheadTerm ? `${aheadTerm.mornings} mornings at ${money(quote(n, h))} each, or ${money(aheadTerm.monthly)} a month.` : "";
   showAnchor(n, h);
   document.getElementById("sub").textContent = n ? (aheadTerm ? `${aheadTerm.months} months paid ahead: ${n} ${n === 1 ? "person" : "people"}, ${h} hours a morning, including GST` : `${n} ${n === 1 ? "person" : "people"}, ${h} hours, including GST`) : "Enter 1 to 500 people";
   if (!n) return;
@@ -490,7 +510,7 @@ async function refreshStartTimes() {
 }
 // Saturdays and Sundays are the days we can promise (Sam works weekdays elsewhere); a weekday is a request we ring about.
 function dayNote(date) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return { text: "Saturdays and Sundays are our sure thing. A weekday? Pick it and we'll ring to see what we can do.", weekday: false };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return { text: "A weekday? Pick it and we'll ring to see what we can do.", weekday: false };
   const d = new Date(date + "T12:00:00").getDay();
   return d === 0 || d === 6 ? { text: "A weekend date: we'll do our best to hold it for you.", weekday: false }
     : { text: "A weekday: we can't promise it yet. Send it and we'll ring to see what we can do.", weekday: true };
@@ -525,10 +545,41 @@ function bookingProblem(p) {
   if (!p.people) return "Enter 1 to 500 people above.";
   return "";
 }
-function say(text, ok, linkHref) {
+function say(text, ok) {
   msg.textContent = text; msg.hidden = false; msg.dataset.state = ok ? "ok" : "problem";
-  if (linkHref) { const a = document.createElement("a"); a.href = linkHref; a.textContent = "Open your page"; a.className = "go"; msg.appendChild(document.createElement("br")); msg.appendChild(a); }
 }
+const GO_LABEL = go.textContent;
+const longDay = (d) => new Date(d + "T12:00:00+11:00").toLocaleDateString("en-AU", { weekday: "long", day: "numeric", month: "long", timeZone: "Australia/Sydney" });
+// After a request goes through: the form gives way to a plain confirmation, so nobody is left looking at a greyed-out button wondering
+// whether it worked. It says what was asked, what happens next, and where the email will come from.
+function showSent(p, hold) {
+  const held = !!(hold && hold.outcome === "held");
+  field("sent-title").textContent = held ? "Your date is held!" : "Request sent!";
+  field("sent-lead").textContent = held ? "We have " + longDay(p.date) + " pencilled in for you." : "We have your request. We confirm the date when we ring.";
+  const ahead = /^Prepaid contract/.test(p.package), four = p.package === "Office Club 4-Pack";
+  const price = ahead ? "" : four ? money(packPrice(p.people, p.hours)) + " for four mornings" : money(quote(p.people, p.hours));
+  const rows = [["Date", longDay(p.date)], ["Start", pretty(p.startTime)], ["People", String(p.people)], ["Hours", String(p.hours)], ["Where", p.address]];
+  if (price) rows.push(["Price", price + ", including GST"]);
+  const list = field("sent-ticket");
+  list.textContent = "";
+  rows.forEach(([k, v]) => { const dt = document.createElement("dt"), dd = document.createElement("dd"); dt.textContent = k; dd.textContent = v; list.appendChild(dt); list.appendChild(dd); });
+  field("sent-phone").textContent = p.phone;
+  field("sent-page").hidden = !hold;
+  if (hold) field("sent-page").href = "portal/#k=" + hold.key;
+  field("form").hidden = true;
+  msg.hidden = true;
+  const box = field("sent");
+  box.hidden = false;
+  box.scrollIntoView({ block: "start" });
+  box.focus({ preventScroll: true });
+}
+field("sent-again").addEventListener("click", () => {
+  field("sent").hidden = true;
+  field("form").hidden = false;
+  go.disabled = false;
+  go.textContent = GO_LABEL;
+  field("form").scrollIntoView({ block: "start" });
+});
 // One request id per set of details, so a retry after a failure never holds a second slot.
 let lastAttempt = { sig: "", requestId: "", hold: null };
 document.getElementById("form").addEventListener("submit", async (event) => {
@@ -538,7 +589,8 @@ document.getElementById("form").addEventListener("submit", async (event) => {
   const problem = bookingProblem(p);
   if (problem) { say(problem, false); return; }
   go.disabled = true;
-  say("Sending your details...", true);
+  go.textContent = "Sending...";
+  msg.hidden = true;
   const sig = JSON.stringify([p.name, p.email, p.date, p.startTime, p.people, p.hours, p.suburb, p.address]);
   if (lastAttempt.sig !== sig) lastAttempt = { sig, requestId: uid(), hold: null };
   // First the store: it decides whether the date can be held and makes the client's own private key. If it cannot be reached,
@@ -553,17 +605,13 @@ document.getElementById("form").addEventListener("submit", async (event) => {
   const body = hold ? Object.assign({}, p, { outcome: hold.outcome, key: hold.key }) : p;
   try {
     const data = await postJson(INTAKE_URL, body, 25000);
-    if (data && data.ok) {
-      const heldText = hold && hold.outcome === "held" ? "Your date is held. " : "";
-      say(heldText + "Your price is on its way to your inbox, and we will call you today to confirm.", true, hold ? "portal/#k=" + hold.key : "");
-      go.textContent = hold && hold.outcome === "held" ? "Held. Thank you!" : "Sent. Thank you!";
-      return;
-    }
+    if (data && data.ok) { showSent(p, hold); return; }
     say("We could not take that just now. " + CALL_LINE, false);
   } catch (err) {
     say("We could not send that. " + CALL_LINE, false);
   }
   go.disabled = false;
+  go.textContent = GO_LABEL;
 });
 
 // Passive tracking: inert unless config.js sets the events URL and site key.

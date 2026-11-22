@@ -15,7 +15,7 @@ const S = require("./store/logic.js");
 
 export const MOCK_APP_TOKEN = "dev-app-token-0123456789abcdef";
 export const MOCK_CLIENT_TOKEN = "CLIENT-TOKEN-FIXTURE-0000000000";
-// A confirmed morning ten days out with a pre-order link (the key is the link's own, not a client's), and one already closed.
+// A confirmed morning ten days out with a pre-order link (the key is the link's own, not a client's), and one already closed (its morning is today, so it closed at 6 pm yesterday whatever the time of day).
 export const MOCK_PREORDER_CLIENT_TOKEN = "CLIENT-TOKEN-PREORDER-0000000000";
 export const MOCK_PREORDER_KEY = "PREORDER-KEY-FIXTURE-0000000000000000";
 export const MOCK_PREORDER_CLOSED_KEY = "PREORDER-KEY-CLOSED-0000000000000000";
@@ -122,7 +122,7 @@ export function seededDb(now = new Date().toISOString()) {
         people: 20, hours: 3, address: "1 Main Street, Tea Gardens", total: 619, outOfHoursFee: 0, requestId: "", amountDue: 619, extras: [], extrasMenu: [EXTRA_STENCIL] },
       { id: "bk-pre-open", clientToken: MOCK_PREORDER_CLIENT_TOKEN, status: "confirmed", date: addDaysIso(now.slice(0, 10), 10), startTime: "09:00", endTime: "12:00",
         people: 20, hours: 3, address: "3 Lake Road, Tea Gardens", total: 619, outOfHoursFee: 0, requestId: "", amountDue: 619, preorderKey: MOCK_PREORDER_KEY },
-      { id: "bk-pre-closed", clientToken: MOCK_PREORDER_CLIENT_TOKEN, status: "confirmed", date: addDaysIso(now.slice(0, 10), 1), startTime: "09:00", endTime: "12:00",
+      { id: "bk-pre-closed", clientToken: MOCK_PREORDER_CLIENT_TOKEN, status: "confirmed", date: addDaysIso(now.slice(0, 10), 0), startTime: "09:00", endTime: "12:00",
         people: 20, hours: 3, address: "3 Lake Road, Tea Gardens", total: 619, outOfHoursFee: 0, requestId: "", amountDue: 619, preorderKey: MOCK_PREORDER_CLOSED_KEY },
     ],
     busy: [],

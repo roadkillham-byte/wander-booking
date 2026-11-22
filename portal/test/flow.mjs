@@ -589,6 +589,20 @@ await check("the pause form pauses within the rules, and says plainly when it ca
   if (db.tables.queue.filter((x) => x.kind === "pause").length !== 1) throw new Error("a refused pause was queued");
 });
 
+await check("a request the van could not hold yet says so, and does not ask for the date, hours and people again", async () => {
+  const token = "CLIENT-TOKEN-REQUESTED-000000000";
+  db.tables.newclients.push({ token, firstName: "Sam", requestId: "req-waiting", createdAt: new Date().toISOString() });
+  db.tables.queue.push({ id: "req-waiting", kind: "newhold", receivedAt: new Date().toISOString(), clientToken: token, payload: JSON.stringify({ request: {}, response: {} }), acked: "no" });
+  await page.goto(url + "/#k=" + token + "&x=1");
+  await page.waitForSelector("#app h2");
+  await page.waitForFunction(() => /We have your request/.test(document.getElementById("app").innerText));
+  const t = await page.innerText("#app");
+  if (/Pick your morning/.test(t)) throw new Error("asked to pick the morning again");
+  if (!/spam or junk/.test(t) || !/ring you today/.test(t)) throw new Error("copy missing: " + t.slice(0, 200));
+  if (!(await page.$('a[href*="v=pick"]'))) throw new Error("no way to pick a different date");
+  await noOverflowAndNoJunk("request waiting");
+});
+
 await check("no page errors", async () => {
   if (errors.length) throw new Error(errors.join(" | "));
 });
