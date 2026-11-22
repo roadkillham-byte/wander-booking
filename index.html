@@ -258,25 +258,6 @@ details.packwrap .pack{margin-top:6px}
     </form>
 
     <div class="stack">
-      <section class="card rise d4">
-        <h2>What you <span>get</span></h2>
-        <ul>
-          <li>Any bowl you like, one each</li>
-          <li>Unlimited coffee, tea and hot chocolate</li>
-          <li>Set-up included</li>
-          <li>A free babyccino for every child under 12</li>
-          <li>No preordering. Just people and hours.</li>
-        </ul>
-      </section>
-      <section class="card rise d4">
-        <h2>Our <span>guarantees</span></h2>
-        <ul class="promise">
-          <li>15 minutes late? Your first hour is free.</li>
-          <li>We don't turn up? Full refund. No ifs or buts.</li>
-          <li>Not quite right? Remade or refunded on the spot.</li>
-          <li>Cancel 24 hours ahead? It all goes to your next booking.</li>
-        </ul>
-      </section>
       <section class="card rise d4 good">
         <h2>Good to <span>know</span></h2>
         <div id="cases" hidden></div>
@@ -383,13 +364,15 @@ function showQuote() {
   // Paying ahead: the price tag shows the whole term chosen, not one morning.
   const aheadChosen = n && document.querySelector('input[name="package"]:checked')?.value === "Prepaid contract";
   const aheadTerm = aheadChosen ? contractTerms(n, h).find((t) => String(t.months) === document.getElementById("contract-term").value) : null;
-  const amtText = n ? money(aheadTerm ? aheadTerm.total : quote(n, h)) : "$ ...";
+  // The tag is the whole price: with the photographer ticked it includes the photographer (a paid-ahead term is priced without one).
+  const photoCost = n && PHOTO_RATE && photoBox.checked && !aheadTerm ? PHOTO_RATE * h : 0;
+  const amtText = n ? money((aheadTerm ? aheadTerm.total : quote(n, h)) + photoCost) : "$ ...";
   // The brand font has no dollar sign, so the currency symbol is set in the body font.
   document.getElementById("amt").innerHTML = amtText.replace(/^\$/, '<span class="cur">$</span>');
   // Only a paid-ahead term needs a line here (what each morning costs and the monthly amount); a single morning says its price once, in the tag.
   document.getElementById("perhead").textContent = aheadTerm ? `${aheadTerm.mornings} mornings at ${money(quote(n, h))} each, or ${money(aheadTerm.monthly)} a month.` : "";
   showAnchor(n, h);
-  document.getElementById("sub").textContent = n ? (aheadTerm ? `${aheadTerm.months} months paid ahead: ${n} ${n === 1 ? "person" : "people"}, ${h} hours a morning, including GST` : `${n} ${n === 1 ? "person" : "people"}, ${h} hours, including GST`) : "Enter 1 to 500 people";
+  document.getElementById("sub").textContent = n ? (aheadTerm ? `${aheadTerm.months} months paid ahead: ${n} ${n === 1 ? "person" : "people"}, ${h} hours a morning, including GST` : `${n} ${n === 1 ? "person" : "people"}, ${h} hours${photoCost ? ", with a " + h + "-hour photographer" : ""}, including GST`) : "Enter 1 to 500 people";
   if (!n) return;
   // The 4-Pack is four mornings at the length chosen, at list price.
   const pack = packPrice(n, h);
@@ -406,7 +389,7 @@ function showQuote() {
   document.getElementById("contractline").textContent =
     `For ${n} ${n === 1 ? "person" : "people"}, ${h} hours a morning: each morning is ${money(quote(n, h))}, the same as a single morning.`;
 }
-document.addEventListener("input", showQuote); showQuote();
+document.addEventListener("input", showQuote); photoBox.addEventListener("change", showQuote); showQuote();
 // Choosing the 4-Pack opens its comparison; choosing a single morning folds it away.
 document.querySelectorAll('input[name="package"]').forEach((el) => el.addEventListener("change", () => {
   const chosen = document.querySelector('input[name="package"]:checked').value;
@@ -557,8 +540,11 @@ function showSent(p, hold) {
   field("sent-title").textContent = held ? "Your date is held!" : "Request sent!";
   field("sent-lead").textContent = held ? "We have " + longDay(p.date) + " pencilled in for you." : "We have your request. We confirm the date when we ring.";
   const ahead = /^Prepaid contract/.test(p.package), four = p.package === "Office Club 4-Pack";
-  const price = ahead ? "" : four ? money(packPrice(p.people, p.hours)) + " for four mornings" : money(quote(p.people, p.hours));
-  const rows = [["Date", longDay(p.date)], ["Start", pretty(p.startTime)], ["People", String(p.people)], ["Hours", String(p.hours)], ["Where", p.address]];
+  const photoCost = p.photographer > 0 ? PHOTO_RATE * p.photographer : 0;
+  const price = ahead ? "" : four ? money(packPrice(p.people, p.hours)) + " for four mornings" : money(quote(p.people, p.hours) + photoCost);
+  const rows = [["Date", longDay(p.date)], ["Start", pretty(p.startTime)], ["People", String(p.people)], ["Hours", String(p.hours)]];
+  if (photoCost) rows.push(["Photographer", p.photographer + " hours, " + money(photoCost) + (four ? " a morning" : "")]);
+  rows.push(["Where", p.address]);
   if (price) rows.push(["Price", price + ", including GST"]);
   const list = field("sent-ticket");
   list.textContent = "";

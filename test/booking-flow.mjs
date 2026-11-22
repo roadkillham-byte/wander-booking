@@ -61,7 +61,7 @@ async function fillAndSend(page) {
 await check("the removed copy is gone and the numbers from the Wander site arrive filled in", async () => {
   const { page, ctx } = await open("held");
   const text = await page.evaluate(() => document.body.innerText + " " + document.querySelector('meta[name="description"]').content);
-  for (const gone of ["weekend morning", "sure thing", "a head, everything included", "Any bowl · Unlimited drinks", "Late, no-show or not right"]) {
+  for (const gone of ["weekend morning", "sure thing", "a head, everything included", "Any bowl · Unlimited drinks", "Late, no-show or not right", "Our guarantees", "What you get"]) {
     if (text.toLowerCase().includes(gone.toLowerCase())) throw new Error("still shows: " + gone);
   }
   if (!/A morning your people\s+talk about/i.test(text)) throw new Error("headline not changed: " + text.slice(0, 80));
@@ -85,6 +85,25 @@ await check("a held request replaces the form with a plain confirmation and a wo
   if (visibleDisabled) throw new Error("a greyed-out button is still showing");
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   if (overflow > 0) throw new Error("overflows by " + overflow);
+  await ctx.close();
+});
+
+await check("ticking the photographer updates the price tag (and unticking puts it back), and the confirmation shows it", async () => {
+  const { page, ctx } = await open("held");
+  const money = (n) => "$" + n.toLocaleString("en-AU");
+  const base = await page.evaluate(() => window.WanderQuote.quote(45, 4));
+  const tag = async () => (await page.innerText("#amt")).replace(/\s+/g, "");
+  if ((await tag()) !== money(base)) throw new Error("starting tag " + (await tag()) + " is not " + money(base));
+  await page.check("#photographer");
+  if ((await tag()) !== money(base + 320)) throw new Error("tag with photographer is " + (await tag()) + ", expected " + money(base + 320));
+  if (!/with a 4-hour photographer/.test(await page.innerText("#sub"))) throw new Error("the line under the price does not say so: " + (await page.innerText("#sub")));
+  await page.uncheck("#photographer");
+  if ((await tag()) !== money(base)) throw new Error("untick did not restore the price");
+  await page.check("#photographer");
+  await fillAndSend(page);
+  await page.waitForSelector("#sent:not([hidden])");
+  const t = await page.innerText("#sent");
+  if (!/photographer/i.test(t) || !t.includes("4 hours, $320") || !t.includes(money(base + 320))) throw new Error("confirmation misses the photographer or the whole price: " + t.replace(/\s+/g, " ").slice(0, 400));
   await ctx.close();
 });
 
